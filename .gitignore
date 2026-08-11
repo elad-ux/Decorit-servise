@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+
+# Not committed: pushes in this environment go through the GitHub API (see
+# SECURITY.md / dev notes) rather than local git, which makes a 1700+ line
+# generated lockfile expensive to keep in sync by hand. CI installs with
+# `npm install` instead of `npm ci` until a normal git-push path exists.
+package-lock.json
