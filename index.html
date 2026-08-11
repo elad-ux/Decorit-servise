@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!--
+      Content-Security-Policy (best-effort via meta tag — GitHub Pages serves static
+      files only, so we can't set this as a real HTTP response header). This locks
+      script execution to same-origin bundle code only (no inline scripts, no eval,
+      no third-party script hosts) and restricts network calls to the n8n API host
+      this app is meant to talk to. See SECURITY.md for the full threat model and
+      the limitations of a meta-tag CSP (e.g. frame-ancestors is not enforceable this way).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://containertracker43.duckdns.org; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Assistant:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Decorit — פאנל ניהול</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
