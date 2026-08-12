@@ -1,5 +1,6 @@
 import { useAuth } from "../lib/auth";
 import type { Role } from "../lib/api";
+import TopBar from "../components/TopBar";
 
 interface ModuleCard {
   title: string;
@@ -34,25 +35,28 @@ export default function Hub() {
   const visibleModules = MODULES.filter((m) => !m.minRole || m.minRole.includes(session.role));
 
   return (
-    <div className="hub-page">
-      <div className="hub-header">
-        <h1>שלום, {session.name}</h1>
-        <div className="whoami">
-          <span>{ROLE_LABEL[session.role]}</span>
-          <button type="button" className="btn-link" style={{ marginInlineStart: "1rem" }} onClick={logout}>
-            יציאה
-          </button>
+    <>
+      <TopBar>
+        <span className="whoami-name">
+          {session.name} <span className="whoami-role">· {ROLE_LABEL[session.role]}</span>
+        </span>
+        <button type="button" className="btn-link" onClick={logout}>
+          יציאה
+        </button>
+      </TopBar>
+      <div className="hub-page">
+        <h1 className="page-title">שלום, {session.name}</h1>
+        <p className="page-subtitle">בחרו מודול כדי להתחיל</p>
+        <div className="hub-grid">
+          {visibleModules.map((m) => (
+            <div key={m.title} className={`hub-card${m.available ? "" : " disabled"}`}>
+              <span className={`tag${m.available ? "" : " soon"}`}>{m.available ? "פעיל" : "בקרוב"}</span>
+              <h2>{m.title}</h2>
+              <p>{m.description}</p>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="hub-grid">
-        {visibleModules.map((m) => (
-          <div key={m.title} className={`hub-card${m.available ? "" : " disabled"}`}>
-            <span className={`tag${m.available ? "" : " soon"}`}>{m.available ? "פעיל" : "בקרוב"}</span>
-            <h2>{m.title}</h2>
-            <p>{m.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
