@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { requestOtp, normalizePhoneForDisplay, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import TopBar from "../components/TopBar";
 
 type Step = "phone" | "code";
 
@@ -77,8 +78,10 @@ export default function Login() {
   }
 
   return (
-    <div className="centered-screen">
-      <div className="card">
+    <>
+      <TopBar />
+      <div className="centered-screen">
+        <div className="card">
         {step === "phone" ? (
           <form onSubmit={handlePhoneSubmit} noValidate>
             <h1>כניסה לפאנל</h1>
@@ -135,7 +138,8 @@ export default function Login() {
             </button>
           </form>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
