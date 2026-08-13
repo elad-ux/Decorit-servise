@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../lib/api";
 import TopBar from "../components/TopBar";
@@ -6,7 +7,8 @@ interface ModuleCard {
   title: string;
   description: string;
   minRole?: Role[];
-  /** All modules besides Hub itself are not built yet (Phase 1 = Login + Hub only). */
+  to?: string;
+  /** Modules without `to` aren't built yet. */
   available: boolean;
 }
 
@@ -23,8 +25,10 @@ const MODULES: ModuleCard[] = [
   {
     title: "תפוצות",
     description: "אנשי קשר, תבניות ושליחת קמפיינים",
-    minRole: ["admin", "manager"],
-    available: false,
+    // Matches the server-side check on the "broadcast-send" action (admin/whatsapp roles only).
+    minRole: ["admin"],
+    to: "/broadcast",
+    available: true,
   },
 ];
 
@@ -48,13 +52,24 @@ export default function Hub() {
         <h1 className="page-title">שלום, {session.name}</h1>
         <p className="page-subtitle">בחרו מודול כדי להתחיל</p>
         <div className="hub-grid">
-          {visibleModules.map((m) => (
-            <div key={m.title} className={`hub-card${m.available ? "" : " disabled"}`}>
-              <span className={`tag${m.available ? "" : " soon"}`}>{m.available ? "פעיל" : "בקרוב"}</span>
-              <h2>{m.title}</h2>
-              <p>{m.description}</p>
-            </div>
-          ))}
+          {visibleModules.map((m) => {
+            const card = (
+              <>
+                <span className={`tag${m.available ? "" : " soon"}`}>{m.available ? "פעיל" : "בקרוב"}</span>
+                <h2>{m.title}</h2>
+                <p>{m.description}</p>
+              </>
+            );
+            return m.available && m.to ? (
+              <Link key={m.title} to={m.to} className="hub-card">
+                {card}
+              </Link>
+            ) : (
+              <div key={m.title} className="hub-card disabled">
+                {card}
+              </div>
+            );
+          })}
         </div>
       </div>
     </>

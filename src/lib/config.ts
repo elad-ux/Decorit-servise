@@ -22,6 +22,9 @@ export const ENDPOINTS = {
   containersList: `${API_ROOT}/dashboard/containers`,
   containerDetail: `${API_ROOT}/dashboard/container-detail`,
   updateContainerField: `${API_ROOT}/dashboard/update-container-field`,
+  broadcastContacts: `${API_ROOT}/dashboard/broadcast-contacts`,
+  broadcastTemplates: `${API_ROOT}/dashboard/broadcast-templates`,
+  broadcastSend: `${API_ROOT}/dashboard/broadcast-send`,
 } as const;
 
 export const SESSION_STORAGE_KEY = "decorit_panel_session";
