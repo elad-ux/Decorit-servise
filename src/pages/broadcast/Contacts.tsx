@@ -21,10 +21,10 @@ type FormState = {
   contact_name: string;
   phone: string;
   city: string;
-  category: string;
+  categoryIds: string[];
 };
 
-const EMPTY_FORM: FormState = { business_name: "", contact_name: "", phone: "", city: "", category: "" };
+const EMPTY_FORM: FormState = { business_name: "", contact_name: "", phone: "", city: "", categoryIds: [] };
 
 export default function BroadcastContacts() {
   const { session } = useAuth();
@@ -68,7 +68,7 @@ export default function BroadcastContacts() {
     const q = search.trim().toLowerCase();
     return contacts.filter((c) => {
       if (cityFilter && c.city !== cityFilter) return false;
-      if (categoryFilter && c.category !== categoryFilter) return false;
+      if (categoryFilter && !c.categories.some((cat) => cat.name === categoryFilter)) return false;
       if (!q) return true;
       return (
         c.business_name.toLowerCase().includes(q) ||
@@ -77,6 +77,16 @@ export default function BroadcastContacts() {
       );
     });
   }, [contacts, search, cityFilter, categoryFilter]);
+
+  function toggleCategoryInForm(id: string) {
+    if (!editing) return;
+    setEditing({
+      ...editing,
+      categoryIds: editing.categoryIds.includes(id)
+        ? editing.categoryIds.filter((c) => c !== id)
+        : [...editing.categoryIds, id],
+    });
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -90,7 +100,7 @@ export default function BroadcastContacts() {
         contact_name: editing.contact_name || null,
         phone: editing.phone,
         city: editing.city || null,
-        category: editing.category || null,
+        category_ids: editing.categoryIds,
       });
       setEditing(null);
       await load();
@@ -187,7 +197,7 @@ export default function BroadcastContacts() {
                 <th>איש קשר</th>
                 <th>טלפון</th>
                 <th>עיר</th>
-                <th>קטגוריה</th>
+                <th>קטגוריות</th>
                 <th>פעיל</th>
                 <th>הסרה</th>
                 <th></th>
@@ -200,7 +210,19 @@ export default function BroadcastContacts() {
                   <td>{c.contact_name || "—"}</td>
                   <td className="mono">{c.phone}</td>
                   <td>{c.city || "—"}</td>
-                  <td>{c.category || "—"}</td>
+                  <td>
+                    {c.categories.length === 0 ? (
+                      "—"
+                    ) : (
+                      <div className="chip-row">
+                        {c.categories.map((cat) => (
+                          <span key={cat.id} className="chip chip-static">
+                            {cat.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <button type="button" className={`pill ${c.active ? "pill-ok" : "pill-off"}`} onClick={() => void handleToggleActive(c)}>
                       {c.active ? "פעיל" : "לא פעיל"}
@@ -216,7 +238,20 @@ export default function BroadcastContacts() {
                     </button>
                   </td>
                   <td>
-                    <button type="button" className="btn-link" onClick={() => setEditing({ ...c, contact_name: c.contact_name ?? "", city: c.city ?? "", category: c.category ?? "" })}>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      onClick={() =>
+                        setEditing({
+                          id: c.id,
+                          business_name: c.business_name,
+                          contact_name: c.contact_name ?? "",
+                          phone: c.phone,
+                          city: c.city ?? "",
+                          categoryIds: c.categories.map((cat) => cat.id),
+                        })
+                      }
+                    >
                       עריכה
                     </button>
                     {" · "}
@@ -258,15 +293,24 @@ export default function BroadcastContacts() {
               <input value={editing.city} onChange={(e) => setEditing({ ...editing, city: e.target.value })} />
             </div>
             <div className="field">
-              <label>קטגוריה</label>
-              <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })}>
-                <option value="">—</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.name}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <label>קטגוריות (אפשר לבחור כמה)</label>
+              <div className="chip-row">
+                {categories.map((cat) => {
+                  const selected = editing.categoryIds.includes(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`chip${selected ? " chip-selected" : ""}`}
+                      onClick={() => toggleCategoryInForm(cat.id)}
+                    >
+                      {selected ? "✓ " : ""}
+                      {cat.name}
+                    </button>
+                  );
+                })}
+                {categories.length === 0 && <span className="muted">אין קטגוריות עדיין — הוסיפו אחת מהתפריט</span>}
+              </div>
             </div>
             <button className="btn" type="submit" disabled={saving}>
               {saving ? "שומר..." : "שמירה"}
