@@ -556,6 +556,45 @@ tbody tr:hover {
   color: var(--danger-500);
 }
 
+/* ---- Chips (multi-select categories) ---- */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--taupe-300);
+  background: var(--sand);
+  color: var(--taupe-500);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.chip:hover {
+  border-color: var(--espresso);
+}
+
+.chip-selected {
+  background: var(--espresso);
+  border-color: var(--espresso);
+  color: #fff;
+}
+
+.chip-static {
+  cursor: default;
+  background: var(--sand);
+  color: var(--taupe-500);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.72rem;
+}
+
 /* ---- Modal ---- */
 .modal-backdrop {
   position: fixed;

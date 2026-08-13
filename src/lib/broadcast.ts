@@ -7,7 +7,15 @@ export interface BroadcastContact {
   contact_name: string | null;
   phone: string;
   city: string | null;
-  category: string | null;
+  /**
+   * A contact can belong to several categories (many-to-many via
+   * broadcast_contact_categories) — this is what "list" actually returns
+   * per row (from the broadcast_contacts_with_categories view). The plain
+   * `category` text column on broadcast_contacts is legacy/unused by the
+   * n8n upsert handler (never written on update, always blanked on
+   * create) — don't resurrect it.
+   */
+  categories: BroadcastCategory[];
   active: boolean;
   opted_out: boolean;
   opted_out_at: string | null;
@@ -116,10 +124,17 @@ export function addCategory(sessionToken: string, name: string): Promise<unknown
   return contacts(sessionToken, "add_category", { name });
 }
 
-export function upsertContact(
-  sessionToken: string,
-  contact: Partial<BroadcastContact> & { business_name: string; phone: string },
-): Promise<unknown> {
+export interface UpsertContactInput {
+  id?: string;
+  business_name: string;
+  contact_name?: string | null;
+  phone: string;
+  city?: string | null;
+  /** Category UUIDs (from BroadcastCategory.id) — replaces the contact's full category set. */
+  category_ids: string[];
+}
+
+export function upsertContact(sessionToken: string, contact: UpsertContactInput): Promise<unknown> {
   return contacts(sessionToken, "upsert", contact);
 }
 
