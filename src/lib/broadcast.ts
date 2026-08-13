@@ -39,6 +39,7 @@ export interface BroadcastTemplate {
   id: string;
   name: string;
   meta_template_name: string | null;
+  meta_template_id: string | null;
   category: string | null;
   language: string;
   header_type: "none" | "image" | "video" | "document";
@@ -167,6 +168,31 @@ export function upsertTemplate(sessionToken: string, template: Partial<Broadcast
 
 export function deleteTemplate(sessionToken: string, id: string): Promise<unknown> {
   return templates(sessionToken, "delete", { id });
+}
+
+/**
+ * Submits the template to Meta for approval (creates it via the WhatsApp
+ * Message Templates API) — n8n builds the Meta payload from the template's
+ * own fields server-side. Only valid for draft/rejected templates; sets
+ * status to "pending" on success. Fails if the template is currently
+ * pending review.
+ */
+export async function submitTemplateToMeta(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; meta_template_name: string }> {
+  return templates(sessionToken, "submit_to_meta", { id });
+}
+
+/**
+ * Polls Meta for the template's current review status and syncs it back
+ * (approved/rejected/pending + rejection_reason) to broadcast_templates.
+ */
+export async function refreshTemplateStatus(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; rejection_reason: string | null }> {
+  return templates(sessionToken, "refresh_status", { id });
 }
 
 // ---- Send / campaigns ----

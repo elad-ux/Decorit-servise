@@ -1,8 +1,15 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
-import { type BroadcastTemplate, deleteTemplate, listTemplates, upsertTemplate } from "../../lib/broadcast";
+import {
+  type BroadcastTemplate,
+  deleteTemplate,
+  listTemplates,
+  refreshTemplateStatus,
+  submitTemplateToMeta,
+  upsertTemplate,
+} from "../../lib/broadcast";
 
 type FormState = {
   id?: string;
@@ -17,7 +24,7 @@ const EMPTY_FORM: FormState = { name: "", category: "", language: "he", body_tex
 
 const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
   draft: "טיוטה",
-  pending: "ממתין לאישור",
+  pending: "ממתין לאישור מ-Meta",
   approved: "מאושר",
   rejected: "נדחה",
 };
@@ -30,6 +37,7 @@ export default function BroadcastTemplates() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -81,6 +89,33 @@ export default function BroadcastTemplates() {
     }
   }
 
+  async function handleSubmitToMeta(t: BroadcastTemplate) {
+    if (!confirm(`לשלוח את התבנית "${t.name}" לאישור Meta? לאחר השליחה לא ניתן לערוך אותה עד לקבלת תשובה.`)) return;
+    setBusyId(t.id);
+    setError(null);
+    try {
+      await submitTemplateToMeta(sessionToken, t.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בשליחה ל-Meta");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRefreshStatus(t: BroadcastTemplate) {
+    setBusyId(t.id);
+    setError(null);
+    try {
+      await refreshTemplateStatus(sessionToken, t.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בבדיקת סטטוס מול Meta");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div>
       {error && <div className="error-box">{error}</div>}
@@ -103,24 +138,50 @@ export default function BroadcastTemplates() {
               </div>
               <p className="template-body">{t.body_text}</p>
               {t.footer_text && <p className="template-footer">{t.footer_text}</p>}
+              {t.meta_template_name && <p className="muted mono">Meta: {t.meta_template_name}</p>}
+              {t.status === "rejected" && t.rejection_reason && (
+                <p className="muted" style={{ color: "var(--danger-500)" }}>
+                  סיבת דחייה: {t.rejection_reason}
+                </p>
+              )}
               <div className="template-actions">
-                <button
-                  type="button"
-                  className="btn-link"
-                  onClick={() =>
-                    setEditing({
-                      id: t.id,
-                      name: t.name,
-                      category: t.category ?? "",
-                      language: t.language,
-                      body_text: t.body_text,
-                      footer_text: t.footer_text ?? "",
-                    })
-                  }
-                >
-                  עריכה
-                </button>
-                {" · "}
+                {(t.status === "draft" || t.status === "rejected") && (
+                  <>
+                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleSubmitToMeta(t)}>
+                      {busyId === t.id ? "שולח..." : "שליחה לאישור Meta"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {t.status === "pending" && (
+                  <>
+                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleRefreshStatus(t)}>
+                      {busyId === t.id ? "בודק..." : "בדיקת סטטוס"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {t.status !== "pending" && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      onClick={() =>
+                        setEditing({
+                          id: t.id,
+                          name: t.name,
+                          category: t.category ?? "",
+                          language: t.language,
+                          body_text: t.body_text,
+                          footer_text: t.footer_text ?? "",
+                        })
+                      }
+                    >
+                      עריכה
+                    </button>
+                    {" · "}
+                  </>
+                )}
                 <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(t)}>
                   מחיקה
                 </button>

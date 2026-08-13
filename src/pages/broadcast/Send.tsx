@@ -3,18 +3,21 @@ import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import {
   type BroadcastBatch,
+  type BroadcastCategory,
   type BroadcastTemplate,
   countTarget,
   createBatch,
   listBatches,
+  listCategories,
   listSendTemplates,
 } from "../../lib/broadcast";
 
-const BATCH_STATUS_LABEL: Record<BroadcastBatch["status"], string> = {
+const BATCH_STATUS_LABEL: Record<string, string> = {
   scheduled: "מתוזמן",
   sending: "בשליחה",
   completed: "הושלם",
   cancelled: "בוטל",
+  created: "נוצר",
 };
 
 function parseCommaList(v: string): string[] | undefined {
@@ -30,6 +33,7 @@ export default function BroadcastSend() {
   const sessionToken = session?.sessionToken ?? "";
 
   const [templates, setTemplates] = useState<BroadcastTemplate[]>([]);
+  const [categories, setCategories] = useState<BroadcastCategory[]>([]);
   const [batches, setBatches] = useState<BroadcastBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,18 +41,21 @@ export default function BroadcastSend() {
 
   const [templateId, setTemplateId] = useState("");
   const [cities, setCities] = useState("");
-  const [categories, setCategories] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [scheduledFor, setScheduledFor] = useState("");
   const [targetCount, setTargetCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  const readyTemplates = templates.filter((t) => t.status === "approved" && !!t.meta_template_name);
+
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [t, b] = await Promise.all([listSendTemplates(sessionToken), listBatches(sessionToken)]);
+      const [t, c, b] = await Promise.all([listSendTemplates(sessionToken), listCategories(sessionToken), listBatches(sessionToken)]);
       setTemplates(t);
+      setCategories(c);
       setBatches(b);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינה");
@@ -62,13 +69,18 @@ export default function BroadcastSend() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function toggleCategory(name: string) {
+    setSelectedCategories((prev) => (prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]));
+    setTargetCount(null);
+  }
+
   async function handleCount() {
     setCounting(true);
     setError(null);
     try {
       const count = await countTarget(sessionToken, {
         filter_cities: parseCommaList(cities),
-        filter_categories: parseCommaList(categories),
+        filter_categories: selectedCategories.length ? selectedCategories : undefined,
       });
       setTargetCount(count);
     } catch (err) {
@@ -83,6 +95,12 @@ export default function BroadcastSend() {
       setError("בחרו תבנית קודם");
       return;
     }
+    const template = readyTemplates.find((t) => t.id === templateId);
+    const confirmMsg = scheduledFor
+      ? `הקמפיין יתוזמן ל-${new Date(scheduledFor).toLocaleString("he-IL")} וישלח הודעות וואטסאפ אמיתיות ללקוחות. להמשיך?`
+      : `פעולה זו תשלח הודעות וואטסאפ אמיתיות ללקוחות תוך עד 5 דקות (תבנית: "${template?.name ?? ""}"). להמשיך?`;
+    if (!confirm(confirmMsg)) return;
+
     setCreating(true);
     setError(null);
     setNotice(null);
@@ -90,7 +108,7 @@ export default function BroadcastSend() {
       const res = await createBatch(sessionToken, {
         template_id: templateId,
         filter_cities: parseCommaList(cities),
-        filter_categories: parseCommaList(categories),
+        filter_categories: selectedCategories.length ? selectedCategories : undefined,
         scheduled_for: scheduledFor || undefined,
       });
       setNotice(`${res.queued} הודעות נכנסו לתור. ${res.note}`);
@@ -105,10 +123,18 @@ export default function BroadcastSend() {
 
   return (
     <div>
-      <div className="callout-info">
-        <strong>שימו לב:</strong> שליחת ההודעות בפועל מול וואטסאפ עדיין לא מחוברת בצד השרת. יצירת קמפיין כאן
-        מכניסה את ההודעות לתור בלבד — הן לא נשלחות בפועל עדיין.
-      </div>
+      {readyTemplates.length === 0 ? (
+        <div className="callout-info">
+          <strong>אין כרגע תבניות מוכנות לשליחה.</strong> שליחה בפועל מחוברת ופעילה מול WhatsApp, אבל היא דורשת תבנית
+          שאושרה ב-Meta ושמה המדויק (meta_template_name) עודכן בעמוד "תבניות". ברגע שתבנית תסומן כ"מאושר" עם שם תבנית
+          מוזן, היא תופיע כאן לבחירה.
+        </div>
+      ) : (
+        <div className="callout-info">
+          <strong>שימו לב:</strong> שליחה בפועל מחוברת ופעילה. לחיצה על "צור קמפיין" תיצור הודעות אמיתיות שיישלחו
+          בוואטסאפ ללקוחות תוך עד 5 דקות (או במועד המתוזמן, אם נבחר).
+        </div>
+      )}
 
       {error && <div className="error-box">{error}</div>}
       {notice && <div className="notice-box">{notice}</div>}
@@ -119,7 +145,7 @@ export default function BroadcastSend() {
           <label>תבנית</label>
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
             <option value="">בחרו תבנית</option>
-            {templates.map((t) => (
+            {readyTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
@@ -131,12 +157,29 @@ export default function BroadcastSend() {
           <input value={cities} onChange={(e) => setCities(e.target.value)} placeholder="חיפה, תל אביב" />
         </div>
         <div className="field">
-          <label>קטגוריות (מופרד בפסיקים, ריק = הכל)</label>
-          <input value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="רהיטים" />
-        </div>
-        <div className="field">
           <label>תזמון (אופציונלי)</label>
           <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="field">
+        <label>קטגוריות (ריק = הכל)</label>
+        <div className="chip-row">
+          {categories.map((cat) => {
+            const selected = selectedCategories.includes(cat.name);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`chip${selected ? " chip-selected" : ""}`}
+                onClick={() => toggleCategory(cat.name)}
+              >
+                {selected ? "✓ " : ""}
+                {cat.name}
+              </button>
+            );
+          })}
+          {categories.length === 0 && <span className="muted">אין קטגוריות עדיין</span>}
         </div>
       </div>
 
@@ -174,7 +217,7 @@ export default function BroadcastSend() {
               {batches.map((b) => (
                 <tr key={b.id}>
                   <td>
-                    <span className={`pill pill-status-${b.status}`}>{BATCH_STATUS_LABEL[b.status]}</span>
+                    <span className={`pill pill-status-${b.status}`}>{BATCH_STATUS_LABEL[b.status] ?? b.status}</span>
                   </td>
                   <td>{b.target_count ?? "—"}</td>
                   <td>{b.scheduled_for ? new Date(b.scheduled_for).toLocaleString("he-IL") : "מיידי"}</td>
