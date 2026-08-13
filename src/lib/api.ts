@@ -80,3 +80,18 @@ export function requestOtp(phone: string): Promise<OtpRequestResponse> {
 export function verifyOtp(phone: string, otpCode: string): Promise<OtpVerifyResponse> {
   return postJson(ENDPOINTS.otpVerify, { phone, otp_code: otpCode });
 }
+
+/**
+ * The broadcast (marketing) endpoints are each a single webhook that
+ * multiplexes several operations via an `action` field in the body, instead
+ * of one webhook per operation like the container endpoints. This is the
+ * shared caller for that shape.
+ */
+export function postAction<T>(
+  url: string,
+  sessionToken: string,
+  action: string,
+  payload: unknown = {},
+): Promise<T> {
+  return postJson(url, { session_token: sessionToken, action, payload });
+}
