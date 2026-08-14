@@ -29,7 +29,7 @@ export interface OtpVerifyResponse {
  * normalized into ApiError so callers don't need to special-case fetch vs.
  * HTTP-error vs. n8n's own {error:true} shape.
  */
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {

@@ -1,26 +1,46 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import {
   type BroadcastTemplate,
+  type TemplateButton,
   deleteTemplate,
   listTemplates,
   refreshTemplateStatus,
   submitTemplateToMeta,
+  uploadBroadcastMedia,
   upsertTemplate,
 } from "../../lib/broadcast";
+
+type HeaderType = "none" | "text" | "image" | "video" | "document";
 
 type FormState = {
   id?: string;
   name: string;
   category: string;
   language: string;
+  header_type: HeaderType;
+  header_text: string;
+  header_sample_media_url: string;
   body_text: string;
   footer_text: string;
+  has_optout_line: boolean;
+  buttons: TemplateButton[];
 };
 
-const EMPTY_FORM: FormState = { name: "", category: "", language: "he", body_text: "", footer_text: "" };
+const EMPTY_FORM: FormState = {
+  name: "",
+  category: "",
+  language: "he",
+  header_type: "none",
+  header_text: "",
+  header_sample_media_url: "",
+  body_text: "",
+  footer_text: "",
+  has_optout_line: false,
+  buttons: [],
+};
 
 const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
   draft: "טיוטה",
@@ -28,6 +48,77 @@ const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
   approved: "מאושר",
   rejected: "נדחה",
 };
+
+const HEADER_TYPE_LABEL: Record<HeaderType, string> = {
+  none: "ללא כותרת",
+  text: "טקסט",
+  image: "תמונה",
+  video: "וידאו",
+  document: "מסמך",
+};
+
+const BUTTON_TYPE_LABEL: Record<TemplateButton["type"], string> = {
+  quick_reply: "תשובה מהירה",
+  url: "קישור",
+  phone: "חיוג",
+};
+
+const OPT_OUT_TEXT = 'השב "הסר" להסרה מרשימת התפוצות';
+
+function substituteVars(text: string): string {
+  return text.replace(/\{\{\s*([a-zA-Z_א-ת]+)\s*\}\}/g, "לדוגמה");
+}
+
+function buttonLimitWarning(buttons: TemplateButton[]): string | null {
+  const urlCount = buttons.filter((b) => b.type === "url").length;
+  const phoneCount = buttons.filter((b) => b.type === "phone").length;
+  if (urlCount > 2) return "מותרים עד 2 כפתורי קישור לפי מגבלות Meta.";
+  if (phoneCount > 1) return "מותר כפתור חיוג אחד בלבד לפי מגבלות Meta.";
+  if (buttons.length > 10) return 'מותרים עד 10 כפתורים בסה"כ.';
+  return null;
+}
+
+function TemplatePreview({ form }: { form: FormState }) {
+  const footer = form.has_optout_line
+    ? form.footer_text
+      ? `${form.footer_text} • ${OPT_OUT_TEXT}`
+      : OPT_OUT_TEXT
+    : form.footer_text;
+
+  return (
+    <div className="wa-preview">
+      <div className="wa-bubble">
+        {form.header_type === "text" && form.header_text && <div className="wa-header-text">{form.header_text}</div>}
+        {(form.header_type === "image" || form.header_type === "video" || form.header_type === "document") && (
+          <div className="wa-header-media">
+            {form.header_sample_media_url && form.header_type === "image" ? (
+              <img src={form.header_sample_media_url} alt="" />
+            ) : (
+              <span>
+                {form.header_type === "image" && "🖼 תמונה"}
+                {form.header_type === "video" && "🎬 וידאו"}
+                {form.header_type === "document" && "📄 מסמך"}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="wa-body">{substituteVars(form.body_text) || "(גוף ההודעה יופיע כאן)"}</div>
+        {footer && <div className="wa-footer">{footer}</div>}
+      </div>
+      {form.buttons.length > 0 && (
+        <div className="wa-buttons">
+          {form.buttons.map((b, i) => (
+            <div key={i} className="wa-button">
+              {b.type === "url" && "🔗 "}
+              {b.type === "phone" && "📞 "}
+              {b.text || "(כיתוב כפתור)"}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BroadcastTemplates() {
   const { session } = useAuth();
@@ -38,6 +129,8 @@ export default function BroadcastTemplates() {
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
@@ -67,8 +160,16 @@ export default function BroadcastTemplates() {
         name: editing.name,
         category: editing.category || undefined,
         language: editing.language,
+        header_type: editing.header_type,
+        header_text: editing.header_type === "text" ? editing.header_text || undefined : undefined,
+        header_sample_media_url:
+          editing.header_type === "image" || editing.header_type === "video" || editing.header_type === "document"
+            ? editing.header_sample_media_url || undefined
+            : undefined,
         body_text: editing.body_text,
         footer_text: editing.footer_text || undefined,
+        has_optout_line: editing.has_optout_line,
+        buttons: editing.buttons,
       });
       setEditing(null);
       await load();
@@ -114,6 +215,38 @@ export default function BroadcastTemplates() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editing) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const { url } = await uploadBroadcastMedia(sessionToken, file);
+      setEditing({ ...editing, header_sample_media_url: url });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בהעלאת הקובץ");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function addButton() {
+    if (!editing) return;
+    setEditing({ ...editing, buttons: [...editing.buttons, { type: "quick_reply", text: "", value: "" }] });
+  }
+
+  function updateButton(i: number, patch: Partial<TemplateButton>) {
+    if (!editing) return;
+    const buttons = editing.buttons.map((b, idx) => (idx === i ? { ...b, ...patch } : b));
+    setEditing({ ...editing, buttons });
+  }
+
+  function removeButton(i: number) {
+    if (!editing) return;
+    setEditing({ ...editing, buttons: editing.buttons.filter((_, idx) => idx !== i) });
   }
 
   return (
@@ -172,8 +305,13 @@ export default function BroadcastTemplates() {
                           name: t.name,
                           category: t.category ?? "",
                           language: t.language,
+                          header_type: t.header_type,
+                          header_text: t.header_text ?? "",
+                          header_sample_media_url: t.header_sample_media_url ?? "",
                           body_text: t.body_text,
                           footer_text: t.footer_text ?? "",
+                          has_optout_line: t.has_optout_line,
+                          buttons: t.buttons ?? [],
                         })
                       }
                     >
@@ -193,33 +331,139 @@ export default function BroadcastTemplates() {
       )}
 
       {editing && (
-        <Modal title={editing.id ? "עריכת תבנית" : "תבנית חדשה"} onClose={() => setEditing(null)}>
-          <form onSubmit={handleSave}>
-            <div className="field">
-              <label>שם התבנית</label>
-              <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+        <Modal title={editing.id ? "עריכת תבנית" : "תבנית חדשה"} onClose={() => setEditing(null)} wide>
+          <div className="template-editor">
+            <form onSubmit={handleSave}>
+              <div className="field">
+                <label>שם התבנית</label>
+                <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>קטגוריה (marketing/utility/authentication)</label>
+                <input value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} />
+              </div>
+
+              <div className="field">
+                <label>כותרת (Header)</label>
+                <select
+                  value={editing.header_type}
+                  onChange={(e) => setEditing({ ...editing, header_type: e.target.value as HeaderType })}
+                >
+                  {(Object.keys(HEADER_TYPE_LABEL) as HeaderType[]).map((ht) => (
+                    <option key={ht} value={ht}>
+                      {HEADER_TYPE_LABEL[ht]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {editing.header_type === "text" && (
+                <div className="field">
+                  <label>טקסט הכותרת</label>
+                  <input value={editing.header_text} onChange={(e) => setEditing({ ...editing, header_text: e.target.value })} />
+                </div>
+              )}
+              {(editing.header_type === "image" || editing.header_type === "video" || editing.header_type === "document") && (
+                <div className="field">
+                  <label>קובץ לדוגמה (יועלה ל-Meta לצורך אישור התבנית)</label>
+                  <div className="toolbar" style={{ marginBottom: "0.4rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      style={{ width: "auto" }}
+                      disabled={uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploading ? "מעלה..." : "בחירת קובץ"}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={editing.header_type === "image" ? "image/*" : editing.header_type === "video" ? "video/*" : undefined}
+                      style={{ display: "none" }}
+                      onChange={(e) => void handleFileChange(e)}
+                    />
+                    {editing.header_sample_media_url && <span className="muted mono">הועלה ✓</span>}
+                  </div>
+                  <input
+                    className="mono"
+                    value={editing.header_sample_media_url}
+                    onChange={(e) => setEditing({ ...editing, header_sample_media_url: e.target.value })}
+                    placeholder="או הדביקו כתובת URL ישירות"
+                  />
+                </div>
+              )}
+
+              <div className="field">
+                <label>גוף ההודעה</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={editing.body_text}
+                  onChange={(e) => setEditing({ ...editing, body_text: e.target.value })}
+                />
+                <p className="muted" style={{ marginTop: "0.25rem" }}>
+                  להוספת משתנה: {"{{"}שם_עסק{"}}"} וכדומה (עברית/אנגלית, קו תחתון בלבד).
+                </p>
+              </div>
+              <div className="field">
+                <label>שורת תחתית (footer, אופציונלי)</label>
+                <input value={editing.footer_text} onChange={(e) => setEditing({ ...editing, footer_text: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={editing.has_optout_line}
+                    onChange={(e) => setEditing({ ...editing, has_optout_line: e.target.checked })}
+                  />
+                  הוספת שורת הסרה מרשימת תפוצה (נדרש לפי מדיניות שיווק ב-WhatsApp)
+                </label>
+              </div>
+
+              <div className="field">
+                <label>כפתורים (אופציונלי)</label>
+                {editing.buttons.map((b, i) => (
+                  <div key={i} className="button-row">
+                    <select value={b.type} onChange={(e) => updateButton(i, { type: e.target.value as TemplateButton["type"] })}>
+                      {(Object.keys(BUTTON_TYPE_LABEL) as TemplateButton["type"][]).map((bt) => (
+                        <option key={bt} value={bt}>
+                          {BUTTON_TYPE_LABEL[bt]}
+                        </option>
+                      ))}
+                    </select>
+                    <input placeholder="כיתוב" value={b.text} onChange={(e) => updateButton(i, { text: e.target.value })} />
+                    {b.type !== "quick_reply" && (
+                      <input
+                        placeholder={b.type === "url" ? "https://..." : "מספר טלפון"}
+                        value={b.value}
+                        onChange={(e) => updateButton(i, { value: e.target.value })}
+                      />
+                    )}
+                    <button type="button" className="btn-link btn-link-danger" onClick={() => removeButton(i)}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="btn-link" onClick={addButton}>
+                  + הוספת כפתור
+                </button>
+                {buttonLimitWarning(editing.buttons) && (
+                  <p className="muted" style={{ color: "var(--danger-500)" }}>
+                    {buttonLimitWarning(editing.buttons)}
+                  </p>
+                )}
+              </div>
+
+              <button className="btn" type="submit" disabled={saving}>
+                {saving ? "שומר..." : "שמירה"}
+              </button>
+            </form>
+
+            <div>
+              <label className="preview-label">תצוגה מקדימה</label>
+              <TemplatePreview form={editing} />
             </div>
-            <div className="field">
-              <label>קטגוריה</label>
-              <input value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>גוף ההודעה</label>
-              <textarea
-                required
-                rows={4}
-                value={editing.body_text}
-                onChange={(e) => setEditing({ ...editing, body_text: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>שורת תחתית (footer, אופציונלי)</label>
-              <input value={editing.footer_text} onChange={(e) => setEditing({ ...editing, footer_text: e.target.value })} />
-            </div>
-            <button className="btn" type="submit" disabled={saving}>
-              {saving ? "שומר..." : "שמירה"}
-            </button>
-          </form>
+          </div>
         </Modal>
       )}
     </div>

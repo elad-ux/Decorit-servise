@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
-import { type BroadcastSendRow, type SendStatusSummary, listMessageStatus } from "../../lib/broadcast";
+import { type BroadcastBatch, type BroadcastSendRow, type SendStatusSummary, listBatches, listMessageStatus } from "../../lib/broadcast";
 
 const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
   queued: "בתור",
@@ -18,16 +18,19 @@ export default function BroadcastStatus() {
   const sessionToken = session?.sessionToken ?? "";
   const [sends, setSends] = useState<BroadcastSendRow[]>([]);
   const [summary, setSummary] = useState<SendStatusSummary | null>(null);
+  const [batches, setBatches] = useState<BroadcastBatch[]>([]);
+  const [batchId, setBatchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  async function load(selectedBatchId: string) {
     setLoading(true);
     setError(null);
     try {
-      const res = await listMessageStatus(sessionToken);
+      const [res, b] = await Promise.all([listMessageStatus(sessionToken, selectedBatchId || undefined), listBatches(sessionToken)]);
       setSends(res.sends);
       setSummary(res.summary);
+      setBatches(b);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינת סטטוסים");
     } finally {
@@ -36,13 +39,31 @@ export default function BroadcastStatus() {
   }
 
   useEffect(() => {
-    void load();
+    void load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div>
       {error && <div className="error-box">{error}</div>}
+
+      <div className="toolbar">
+        <select
+          className="input-inline"
+          value={batchId}
+          onChange={(e) => {
+            setBatchId(e.target.value);
+            void load(e.target.value);
+          }}
+        >
+          <option value="">כל הקמפיינים</option>
+          {batches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {new Date(b.created_at).toLocaleString("he-IL")} — {b.status}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {summary && (
         <div className="stat-row">
@@ -80,6 +101,9 @@ export default function BroadcastStatus() {
           <table>
             <thead>
               <tr>
+                <th>עסק</th>
+                <th>טלפון</th>
+                <th>תבנית</th>
                 <th>סטטוס</th>
                 <th>נשלח</th>
                 <th>נמסר</th>
@@ -89,7 +113,13 @@ export default function BroadcastStatus() {
             </thead>
             <tbody>
               {sends.map((s) => (
-                <tr key={s.id}>
+                <tr key={s.send_id}>
+                  <td>
+                    {s.business_name}
+                    {s.contact_name ? ` (${s.contact_name})` : ""}
+                  </td>
+                  <td className="mono">{s.phone}</td>
+                  <td>{s.template_name}</td>
                   <td>
                     <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
                     {s.error && <div className="muted" style={{ fontSize: ".75rem" }}>{s.error}</div>}
@@ -102,7 +132,7 @@ export default function BroadcastStatus() {
               ))}
               {sends.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     אין הודעות עדיין
                   </td>
                 </tr>

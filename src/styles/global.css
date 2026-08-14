@@ -646,6 +646,128 @@ tbody tr:hover {
   padding: 1.25rem;
 }
 
+.modal-wide {
+  max-width: 900px;
+}
+
+/* ---- Template editor (form + live WhatsApp-style preview) ---- */
+.template-editor {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.preview-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--taupe-500);
+  margin-bottom: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.button-row select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.button-row input {
+  flex: 1;
+}
+
+.wa-preview {
+  position: sticky;
+  top: 0;
+}
+
+.wa-bubble {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  max-width: 320px;
+}
+
+.wa-header-text {
+  padding: 0.75rem 0.9rem 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wa-header-media {
+  background: var(--sand);
+  color: var(--taupe-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  font-size: 1.4rem;
+  overflow: hidden;
+}
+
+.wa-header-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wa-body {
+  padding: 0.75rem 0.9rem;
+  white-space: pre-wrap;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.wa-footer {
+  padding: 0 0.9rem 0.75rem;
+  color: var(--taupe-500);
+  font-size: 0.78rem;
+}
+
+.wa-buttons {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 320px;
+}
+
+.wa-button {
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.82rem;
+  color: #0a84ff;
+}
+
+@media (max-width: 640px) {
+  .template-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .wa-preview {
+    position: static;
+  }
+}
+
 /* ---- Template cards ---- */
 .card-grid {
   display: grid;
