@@ -795,54 +795,73 @@ tbody tr:hover {
   }
 }
 
-/* ---- Template cards ---- */
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
+/* ---- Templates: table + side preview panel ---- */
+.templates-layout {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
 }
 
-.template-card {
+.templates-layout > .table-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-row {
+  cursor: pointer;
+}
+
+.template-row-selected {
+  background: var(--clay-50);
+}
+
+.template-side-panel {
+  flex: 0 0 340px;
   background: var(--paper);
   border: 1px solid var(--linen);
   border-radius: var(--radius-lg);
-  padding: 1.25rem;
   box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  padding: 1.25rem;
+  position: sticky;
+  top: 1rem;
 }
 
-.template-card-head {
+.template-side-panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.template-card-head h3 {
+.template-side-panel-head h3 {
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 1.05rem;
   margin: 0;
   color: var(--ink);
 }
 
-.template-body {
-  font-size: 0.88rem;
-  color: var(--espresso);
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.template-footer {
-  font-size: 0.78rem;
-  color: var(--taupe-500);
-  margin: 0;
+.template-side-panel-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .template-actions {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
   font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .templates-layout {
+    flex-direction: column;
+  }
+
+  .template-side-panel {
+    flex: 1 1 auto;
+    width: 100%;
+    position: static;
+  }
 }
 
 /* ---- Callouts / notices ---- */
