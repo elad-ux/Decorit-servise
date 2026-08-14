@@ -6,6 +6,7 @@ import {
   type BroadcastTemplate,
   type TemplateButton,
   deleteTemplate,
+  forceSyncTemplate,
   listTemplates,
   refreshTemplateStatus,
   submitTemplateToMeta,
@@ -227,6 +228,19 @@ export default function BroadcastTemplates() {
     }
   }
 
+  async function handleForceSync(t: BroadcastTemplate) {
+    setBusyId(t.id);
+    setError(null);
+    try {
+      await forceSyncTemplate(sessionToken, t.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בסנכרון מול Meta");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -300,6 +314,14 @@ export default function BroadcastTemplates() {
                   <>
                     <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleRefreshStatus(t)}>
                       {busyId === t.id ? "בודק..." : "בדיקת סטטוס"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {t.status !== "draft" && (
+                  <>
+                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleForceSync(t)}>
+                      {busyId === t.id ? "בודק..." : "סנכרון כפוי מול Meta"}
                     </button>
                     {" · "}
                   </>

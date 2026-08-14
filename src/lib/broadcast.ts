@@ -232,6 +232,19 @@ export async function refreshTemplateStatus(
   return templates(sessionToken, "refresh_status", { id });
 }
 
+/**
+ * Forces an immediate per-template sync against Meta (in addition to the
+ * automatic 15-minute reconcile job). Looks the template up by its stored
+ * meta_template_id first, falling back to name-based search — recovers even
+ * templates whose meta_template_name was never saved locally.
+ */
+export async function forceSyncTemplate(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; meta_template_name: string; rejection_reason: string | null }> {
+  return templates(sessionToken, "force_sync", { id });
+}
+
 // ---- Send / campaigns ----
 
 export async function listSendTemplates(sessionToken: string): Promise<BroadcastTemplate[]> {
