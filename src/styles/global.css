@@ -758,6 +758,33 @@ tbody tr:hover {
   color: #0a84ff;
 }
 
+.wa-header-media-video video {
+  width: 100%;
+  max-height: 140px;
+  display: block;
+}
+
+.wa-header-doc {
+  background: var(--sand);
+  padding: 0.6rem 0.9rem;
+}
+
+.wa-doc-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.wa-doc-name {
+  text-decoration: underline;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .template-editor {
     grid-template-columns: 1fr;

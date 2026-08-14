@@ -28,6 +28,8 @@ type FormState = {
   footer_text: string;
   has_optout_line: boolean;
   buttons: TemplateButton[];
+  /** UI-only — not sent to the server, just powers the live preview. */
+  variable_examples: Record<string, string>;
 };
 
 const EMPTY_FORM: FormState = {
@@ -41,6 +43,7 @@ const EMPTY_FORM: FormState = {
   footer_text: "",
   has_optout_line: false,
   buttons: [],
+  variable_examples: {},
 };
 
 const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
@@ -76,8 +79,20 @@ const TEMPLATE_CATEGORY_LABEL: Record<string, string> = {
 
 const OPT_OUT_TEXT = 'השב "הסר" להסרה מרשימת התפוצות';
 
-function substituteVars(text: string): string {
-  return text.replace(/\{\{\s*([a-zA-Z_א-ת]+)\s*\}\}/g, "לדוגמה");
+function extractVariables(text: string): string[] {
+  const matches = [...text.matchAll(/\{\{\s*([a-zA-Z_א-ת]+)\s*\}\}/g)].map((m) => m[1]);
+  return [...new Set(matches)];
+}
+
+// Replaces {{var}} with the real example value the user typed, falling back
+// to a generic placeholder only if they haven't filled it in yet — this is
+// what actually lets you "understand what's in the template" instead of
+// staring at a wall of {{שם_עסק}} tokens.
+function substituteVars(text: string, examples: Record<string, string>): string {
+  return text.replace(/\{\{\s*([a-zA-Z_א-ת]+)\s*\}\}/g, (_match, name: string) => {
+    const val = examples[name];
+    return val && val.trim() ? val : `[${name}]`;
+  });
 }
 
 function buttonLimitWarning(buttons: TemplateButton[]): string | null {
@@ -96,24 +111,54 @@ function TemplatePreview({ form }: { form: FormState }) {
       : OPT_OUT_TEXT
     : form.footer_text;
 
+  const fileName = (url: string) => {
+    try {
+      const clean = url.split("?")[0];
+      return decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1)) || "מסמך";
+    } catch {
+      return "מסמך";
+    }
+  };
+
   return (
     <div className="wa-preview">
       <div className="wa-bubble">
         {form.header_type === "text" && form.header_text && <div className="wa-header-text">{form.header_text}</div>}
-        {(form.header_type === "image" || form.header_type === "video" || form.header_type === "document") && (
+
+        {form.header_type === "image" && (
           <div className="wa-header-media">
-            {form.header_sample_media_url && form.header_type === "image" ? (
+            {form.header_sample_media_url ? (
               <img src={form.header_sample_media_url} alt="" />
             ) : (
-              <span>
-                {form.header_type === "image" && "🖼 תמונה"}
-                {form.header_type === "video" && "🎬 וידאו"}
-                {form.header_type === "document" && "📄 מסמך"}
-              </span>
+              <span>🖼 תמונה (יש להעלות קובץ)</span>
             )}
           </div>
         )}
-        <div className="wa-body">{substituteVars(form.body_text) || "(גוף ההודעה יופיע כאן)"}</div>
+
+        {form.header_type === "video" && (
+          <div className="wa-header-media wa-header-media-video">
+            {form.header_sample_media_url ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video src={form.header_sample_media_url} controls preload="metadata" />
+            ) : (
+              <span>🎬 וידאו (יש להעלות קובץ)</span>
+            )}
+          </div>
+        )}
+
+        {form.header_type === "document" && (
+          <div className="wa-header-doc">
+            {form.header_sample_media_url ? (
+              <a href={form.header_sample_media_url} target="_blank" rel="noreferrer" className="wa-doc-link">
+                📄 <span className="wa-doc-name">{fileName(form.header_sample_media_url)}</span>
+              </a>
+            ) : (
+              <span>📄 מסמך (יש להעלות קובץ)</span>
+            )}
+          </div>
+        )}
+
+        <div className="wa-body">{substituteVars(form.body_text, form.variable_examples) || "(גוף ההודעה יופיע כאן)"}</div>
         {footer && <div className="wa-footer">{footer}</div>}
       </div>
       {form.buttons.length > 0 && (
@@ -344,6 +389,7 @@ export default function BroadcastTemplates() {
                           footer_text: t.footer_text ?? "",
                           has_optout_line: t.has_optout_line,
                           buttons: t.buttons ?? [],
+                          variable_examples: {},
                         })
                       }
                     >
@@ -443,6 +489,25 @@ export default function BroadcastTemplates() {
                   להוספת משתנה: {"{{"}שם_עסק{"}}"} וכדומה (עברית/אנגלית, קו תחתון בלבד).
                 </p>
               </div>
+              {extractVariables(editing.body_text).length > 0 && (
+                <div className="field">
+                  <label>ערכי דוגמה למשתנים (לתצוגה מקדימה בלבד)</label>
+                  {extractVariables(editing.body_text).map((v) => (
+                    <div key={v} className="button-row">
+                      <span className="mono" style={{ minWidth: "6rem" }}>
+                        {"{{" + v + "}}"}
+                      </span>
+                      <input
+                        value={editing.variable_examples[v] ?? ""}
+                        onChange={(e) =>
+                          setEditing({ ...editing, variable_examples: { ...editing.variable_examples, [v]: e.target.value } })
+                        }
+                        placeholder={`ערך לדוגמה עבור ${v}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="field">
                 <label>שורת תחתית (footer, אופציונלי)</label>
                 <input value={editing.footer_text} onChange={(e) => setEditing({ ...editing, footer_text: e.target.value })} />
