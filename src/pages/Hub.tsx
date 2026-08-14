@@ -21,7 +21,7 @@ const ROLE_LABEL: Record<Role, string> = {
 const MODULES: ModuleCard[] = [
   { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", available: false },
   { title: "מוצרים", description: "תיק מוצרים ורגולציה", available: false },
-  { title: "משתמשים", description: "ניהול צוות המערכת", minRole: ["admin"], available: false },
+  { title: "משתמשים", description: "ניהול צוות המערכת", minRole: ["admin"], to: "/users", available: true },
   {
     title: "תפוצות",
     description: "אנשי קשר, תבניות ושליחת קמפיינים",

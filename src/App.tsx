@@ -7,6 +7,7 @@ import BroadcastContacts from "./pages/broadcast/Contacts";
 import BroadcastTemplates from "./pages/broadcast/Templates";
 import BroadcastSend from "./pages/broadcast/Send";
 import BroadcastStatus from "./pages/broadcast/Status";
+import Users from "./pages/Users";
 
 export default function App() {
   return (
@@ -18,6 +19,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Hub />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <RequireAuth>
+              <Users />
             </RequireAuth>
           }
         />
