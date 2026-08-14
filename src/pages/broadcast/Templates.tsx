@@ -95,6 +95,23 @@ function substituteVars(text: string, examples: Record<string, string>): string 
   });
 }
 
+function templateToPreviewForm(t: BroadcastTemplate): FormState {
+  return {
+    id: t.id,
+    name: t.name,
+    category: t.category ?? "marketing",
+    language: t.language,
+    header_type: t.header_type,
+    header_text: t.header_text ?? "",
+    header_sample_media_url: t.header_sample_media_url ?? "",
+    body_text: t.body_text,
+    footer_text: t.footer_text ?? "",
+    has_optout_line: t.has_optout_line,
+    buttons: t.buttons ?? [],
+    variable_examples: {},
+  };
+}
+
 function buttonLimitWarning(buttons: TemplateButton[]): string | null {
   const urlCount = buttons.filter((b) => b.type === "url").length;
   const phoneCount = buttons.filter((b) => b.type === "phone").length;
@@ -186,7 +203,27 @@ export default function BroadcastTemplates() {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const selected = templates.find((t) => t.id === selectedId) ?? null;
+
+  function openEdit(t: BroadcastTemplate) {
+    setEditing({
+      id: t.id,
+      name: t.name,
+      category: t.category && t.category in TEMPLATE_CATEGORY_LABEL ? t.category : "marketing",
+      language: t.language,
+      header_type: t.header_type,
+      header_text: t.header_text ?? "",
+      header_sample_media_url: t.header_sample_media_url ?? "",
+      body_text: t.body_text,
+      footer_text: t.footer_text ?? "",
+      has_optout_line: t.has_optout_line,
+      buttons: t.buttons ?? [],
+      variable_examples: {},
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -331,80 +368,117 @@ export default function BroadcastTemplates() {
       {loading ? (
         <p className="muted">טוען...</p>
       ) : (
-        <div className="card-grid">
-          {templates.map((t) => (
-            <div key={t.id} className="template-card">
-              <div className="template-card-head">
-                <h3>{t.name}</h3>
-                <span className={`pill pill-status-${t.status}`}>{STATUS_LABEL[t.status]}</span>
+        <div className="templates-layout">
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>שם</th>
+                  <th>סטטוס</th>
+                  <th>Meta</th>
+                  <th>עודכן</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templates.map((t) => (
+                  <tr
+                    key={t.id}
+                    className={`template-row${t.id === selectedId ? " template-row-selected" : ""}`}
+                    onClick={() => setSelectedId(t.id)}
+                  >
+                    <td>{t.name}</td>
+                    <td>
+                      <span className={`pill pill-status-${t.status}`}>{STATUS_LABEL[t.status]}</span>
+                    </td>
+                    <td className="mono">{t.meta_template_name || "—"}</td>
+                    <td>{new Date(t.updated_at).toLocaleString("he-IL")}</td>
+                  </tr>
+                ))}
+                {templates.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                      אין תבניות עדיין
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {selected && (
+            <div className="template-side-panel">
+              <div className="template-side-panel-head">
+                <h3>{selected.name}</h3>
+                <div className="template-side-panel-badges">
+                  <span className={`pill pill-status-${selected.status}`}>{STATUS_LABEL[selected.status]}</span>
+                  <button type="button" className="modal-close" onClick={() => setSelectedId(null)} aria-label="סגור">
+                    ×
+                  </button>
+                </div>
               </div>
-              <p className="template-body">{t.body_text}</p>
-              {t.footer_text && <p className="template-footer">{t.footer_text}</p>}
-              {t.meta_template_name && <p className="muted mono">Meta: {t.meta_template_name}</p>}
-              {t.status === "rejected" && t.rejection_reason && (
+              {selected.meta_template_name && <p className="muted mono">Meta: {selected.meta_template_name}</p>}
+              {selected.status === "rejected" && selected.rejection_reason && (
                 <p className="muted" style={{ color: "var(--danger-500)" }}>
-                  סיבת דחייה: {t.rejection_reason}
+                  סיבת דחייה: {selected.rejection_reason}
                 </p>
               )}
+
+              <TemplatePreview form={templateToPreviewForm(selected)} />
+
               <div className="template-actions">
-                {(t.status === "draft" || t.status === "rejected") && (
-                  <>
-                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleSubmitToMeta(t)}>
-                      {busyId === t.id ? "שולח..." : "שליחה לאישור Meta"}
-                    </button>
-                    {" · "}
-                  </>
-                )}
-                {t.status === "pending" && (
-                  <>
-                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleRefreshStatus(t)}>
-                      {busyId === t.id ? "בודק..." : "בדיקת סטטוס"}
-                    </button>
-                    {" · "}
-                  </>
-                )}
-                {t.status !== "draft" && (
-                  <>
-                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleForceSync(t)}>
-                      {busyId === t.id ? "בודק..." : "סנכרון כפוי מול Meta"}
-                    </button>
-                    {" · "}
-                  </>
-                )}
-                {t.status !== "pending" && (
+                {(selected.status === "draft" || selected.status === "rejected") && (
                   <>
                     <button
                       type="button"
                       className="btn-link"
-                      onClick={() =>
-                        setEditing({
-                          id: t.id,
-                          name: t.name,
-                          category: t.category && t.category in TEMPLATE_CATEGORY_LABEL ? t.category : "marketing",
-                          language: t.language,
-                          header_type: t.header_type,
-                          header_text: t.header_text ?? "",
-                          header_sample_media_url: t.header_sample_media_url ?? "",
-                          body_text: t.body_text,
-                          footer_text: t.footer_text ?? "",
-                          has_optout_line: t.has_optout_line,
-                          buttons: t.buttons ?? [],
-                          variable_examples: {},
-                        })
-                      }
+                      disabled={busyId === selected.id}
+                      onClick={() => void handleSubmitToMeta(selected)}
                     >
+                      {busyId === selected.id ? "שולח..." : "שליחה לאישור Meta"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {selected.status === "pending" && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busyId === selected.id}
+                      onClick={() => void handleRefreshStatus(selected)}
+                    >
+                      {busyId === selected.id ? "בודק..." : "בדיקת סטטוס"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {selected.status !== "draft" && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busyId === selected.id}
+                      onClick={() => void handleForceSync(selected)}
+                    >
+                      {busyId === selected.id ? "בודק..." : "סנכרון כפוי מול Meta"}
+                    </button>
+                    {" · "}
+                  </>
+                )}
+                {selected.status !== "pending" && (
+                  <>
+                    <button type="button" className="btn-link" onClick={() => openEdit(selected)}>
                       עריכה
                     </button>
                     {" · "}
                   </>
                 )}
-                <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(t)}>
+                <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(selected)}>
                   מחיקה
                 </button>
               </div>
             </div>
-          ))}
-          {templates.length === 0 && <p className="muted">אין תבניות עדיין</p>}
+          )}
         </div>
       )}
 
