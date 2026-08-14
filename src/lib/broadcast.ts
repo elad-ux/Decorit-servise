@@ -288,6 +288,19 @@ export async function listBatches(sessionToken: string): Promise<BroadcastBatch[
   return res.batches;
 }
 
+/**
+ * Cancels a batch: marks every send still in "queued" status as "cancelled"
+ * (n8n's Cancel Queued Sends node) and the batch itself as "cancelled".
+ * Sends already sent/delivered/failed are untouched — real send history
+ * stays accurate, only work still waiting in the queue is stopped.
+ */
+export function cancelBatch(
+  sessionToken: string,
+  batchId: string,
+): Promise<{ cancelled_sends: number; note: string }> {
+  return send(sessionToken, "cancel_batch", { batch_id: batchId });
+}
+
 export async function listMessageStatus(
   sessionToken: string,
   batchId?: string,
