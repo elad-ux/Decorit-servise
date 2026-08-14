@@ -9,7 +9,14 @@ export class ApiError extends Error {
   }
 }
 
-export type Role = "admin" | "manager" | "warehouse";
+/**
+ * "whatsapp" is a scoped role: every broadcast endpoint (Contacts/Templates/
+ * Send/Upload Media) already accepts `role === 'whatsapp' || role === 'admin'`
+ * server-side — it just had no way to actually be assigned until the Users
+ * page + Hub gating below wired it up. Users with this role see only the
+ * broadcast module, nothing else (no Users page, no future containers/products).
+ */
+export type Role = "admin" | "manager" | "warehouse" | "whatsapp";
 
 export interface OtpRequestResponse {
   status: "ok";

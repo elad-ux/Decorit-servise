@@ -11,12 +11,14 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: "מנהל מערכת",
   manager: "מנהל",
   warehouse: "מחסן",
+  whatsapp: "צוות תפוצות (וואטסאפ בלבד)",
 };
 
 const ROLE_CLASS: Record<Role, string> = {
   admin: "role-admin",
   manager: "role-manager",
   warehouse: "role-warehouse",
+  whatsapp: "role-whatsapp",
 };
 
 type FormState = { id?: string; name: string; phone: string; role: Role };

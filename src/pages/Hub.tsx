@@ -16,17 +16,18 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: "מנהל מערכת",
   manager: "מנהל",
   warehouse: "מחסן",
+  whatsapp: "צוות תפוצות",
 };
 
 const MODULES: ModuleCard[] = [
-  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", available: false },
-  { title: "מוצרים", description: "תיק מוצרים ורגולציה", available: false },
+  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", minRole: ["admin", "manager", "warehouse"], available: false },
+  { title: "מוצרים", description: "תיק מוצרים ורגולציה", minRole: ["admin", "manager", "warehouse"], available: false },
   { title: "משתמשים", description: "ניהול צוות המערכת", minRole: ["admin"], to: "/users", available: true },
   {
     title: "תפוצות",
     description: "אנשי קשר, תבניות ושליחת קמפיינים",
-    // Matches the server-side check on the "broadcast-send" action (admin/whatsapp roles only).
-    minRole: ["admin"],
+    // Matches the server-side check on every broadcast endpoint (admin/whatsapp roles only).
+    minRole: ["admin", "whatsapp"],
     to: "/broadcast",
     available: true,
   },
