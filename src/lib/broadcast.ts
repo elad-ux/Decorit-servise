@@ -50,7 +50,15 @@ export interface BroadcastTemplate {
   variables_used: string[] | null;
   has_optout_line: boolean;
   buttons: TemplateButton[] | null;
-  status: "draft" | "pending" | "approved" | "rejected";
+  /**
+   * deleted_from_meta: the template was deleted on Meta's side (confirmed),
+   * but the local row can't be deleted too — it's referenced by real send/
+   * batch history via a NO ACTION foreign key, so deleting it would corrupt
+   * that history. Kept as a distinct terminal state so it never gets
+   * confused with a genuine Meta rejection (which is a content problem, not
+   * "this template no longer exists").
+   */
+  status: "draft" | "pending" | "approved" | "rejected" | "deleted_from_meta";
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -278,6 +286,19 @@ export function createBatch(
 export async function listBatches(sessionToken: string): Promise<BroadcastBatch[]> {
   const res = await send<{ batches: BroadcastBatch[] }>(sessionToken, "list_batches");
   return res.batches;
+}
+
+/**
+ * Cancels a batch: marks every send still in "queued" status as "cancelled"
+ * (n8n's Cancel Queued Sends node) and the batch itself as "cancelled".
+ * Sends already sent/delivered/failed are untouched — real send history
+ * stays accurate, only work still waiting in the queue is stopped.
+ */
+export function cancelBatch(
+  sessionToken: string,
+  batchId: string,
+): Promise<{ cancelled_sends: number; note: string }> {
+  return send(sessionToken, "cancel_batch", { batch_id: batchId });
 }
 
 export async function listMessageStatus(

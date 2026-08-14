@@ -51,6 +51,7 @@ const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
   pending: "ממתין לאישור מ-Meta",
   approved: "מאושר",
   rejected: "נדחה",
+  deleted_from_meta: "נמחקה מ-Meta",
 };
 
 const HEADER_TYPE_LABEL: Record<HeaderType, string> = {
@@ -422,6 +423,12 @@ export default function BroadcastTemplates() {
                   סיבת דחייה: {selected.rejection_reason}
                 </p>
               )}
+              {selected.status === "deleted_from_meta" && (
+                <p className="muted">
+                  התבנית נמחקה ב-Meta. היא נשמרת כאן רק כי יש לה היסטוריית שליחות אמיתית — לא ניתן לערוך, לשלוח מחדש
+                  או לסנכרן אותה.
+                </p>
+              )}
 
               <TemplatePreview form={templateToPreviewForm(selected)} />
 
@@ -452,7 +459,7 @@ export default function BroadcastTemplates() {
                     {" · "}
                   </>
                 )}
-                {selected.status !== "draft" && (
+                {selected.status !== "draft" && selected.status !== "deleted_from_meta" && (
                   <>
                     <button
                       type="button"
@@ -465,7 +472,7 @@ export default function BroadcastTemplates() {
                     {" · "}
                   </>
                 )}
-                {selected.status !== "pending" && (
+                {selected.status !== "pending" && selected.status !== "deleted_from_meta" && (
                   <>
                     <button type="button" className="btn-link" onClick={() => openEdit(selected)}>
                       עריכה

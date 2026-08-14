@@ -556,6 +556,11 @@ tbody tr:hover {
   color: var(--danger-500);
 }
 
+.pill-status-deleted_from_meta {
+  background: var(--sand);
+  color: #6b6459;
+}
+
 /* ---- Chips (multi-select categories) ---- */
 .chip-row {
   display: flex;

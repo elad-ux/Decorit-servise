@@ -5,6 +5,7 @@ import {
   type BroadcastBatch,
   type BroadcastCategory,
   type BroadcastTemplate,
+  cancelBatch,
   countTarget,
   createBatch,
   listBatches,
@@ -12,6 +13,8 @@ import {
   listSendTemplates,
   uploadBroadcastMedia,
 } from "../../lib/broadcast";
+
+const CANCELLABLE_BATCH_STATUSES = new Set(["sending", "scheduled"]);
 
 const MEDIA_HEADER_TYPES = ["image", "video", "document"] as const;
 
@@ -51,6 +54,7 @@ export default function BroadcastSend() {
   const [targetCount, setTargetCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const readyTemplates = templates.filter((t) => t.status === "approved" && !!t.meta_template_name);
@@ -148,6 +152,22 @@ export default function BroadcastSend() {
       setError(err instanceof ApiError ? err.message : "שגיאה ביצירת הקמפיין");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleCancelBatch(b: BroadcastBatch) {
+    if (!confirm("לבטל את הקמפיין? הודעות שכבר יצאו לא יושפעו — רק הודעות שעדיין בתור יבוטלו.")) return;
+    setCancellingId(b.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await cancelBatch(sessionToken, b.id);
+      setNotice(`${res.cancelled_sends} הודעות בוטלו. ${res.note}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בביטול הקמפיין");
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -260,6 +280,7 @@ export default function BroadcastSend() {
                 <th>יעד</th>
                 <th>מתוזמן ל</th>
                 <th>נוצר</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -271,11 +292,23 @@ export default function BroadcastSend() {
                   <td>{b.target_count ?? "—"}</td>
                   <td>{b.scheduled_for ? new Date(b.scheduled_for).toLocaleString("he-IL") : "מיידי"}</td>
                   <td>{new Date(b.created_at).toLocaleString("he-IL")}</td>
+                  <td>
+                    {CANCELLABLE_BATCH_STATUSES.has(b.status) && (
+                      <button
+                        type="button"
+                        className="btn-link btn-link-danger"
+                        disabled={cancellingId === b.id}
+                        onClick={() => void handleCancelBatch(b)}
+                      >
+                        {cancellingId === b.id ? "מבטל..." : "ביטול קמפיין"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {batches.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={5} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     אין קמפיינים עדיין
                   </td>
                 </tr>

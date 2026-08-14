@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import { type BroadcastBatch, type BroadcastSendRow, type SendStatusSummary, listBatches, listMessageStatus } from "../../lib/broadcast";
@@ -29,6 +29,7 @@ export default function BroadcastStatus() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const batchIdRef = useRef(batchId);
   batchIdRef.current = batchId;
 
@@ -143,22 +144,58 @@ export default function BroadcastStatus() {
             </thead>
             <tbody>
               {sends.map((s) => (
-                <tr key={s.send_id}>
-                  <td>
-                    {s.business_name}
-                    {s.contact_name ? ` (${s.contact_name})` : ""}
-                  </td>
-                  <td className="mono">{s.phone}</td>
-                  <td>{s.template_name}</td>
-                  <td>
-                    <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
-                    {s.error && <div className="muted" style={{ fontSize: ".75rem" }}>{s.error}</div>}
-                  </td>
-                  <td>{s.sent_at ? new Date(s.sent_at).toLocaleString("he-IL") : "—"}</td>
-                  <td>{s.delivered_at ? new Date(s.delivered_at).toLocaleString("he-IL") : "—"}</td>
-                  <td>{s.read_at ? new Date(s.read_at).toLocaleString("he-IL") : "—"}</td>
-                  <td>{s.reply_text || (s.button_clicked ? `כפתור: ${s.button_clicked}` : "—")}</td>
-                </tr>
+                <Fragment key={s.send_id}>
+                  <tr
+                    onClick={() => setExpandedId(expandedId === s.send_id ? null : s.send_id)}
+                    style={{ cursor: "pointer" }}
+                    title="לחץ לתצוגת השיחה בוואטסאפ"
+                  >
+                    <td>
+                      {s.business_name}
+                      {s.contact_name ? ` (${s.contact_name})` : ""}
+                    </td>
+                    <td className="mono">{s.phone}</td>
+                    <td>{s.template_name}</td>
+                    <td>
+                      <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
+                      {s.error && <div className="muted" style={{ fontSize: ".75rem" }}>{s.error}</div>}
+                    </td>
+                    <td>{s.sent_at ? new Date(s.sent_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>{s.delivered_at ? new Date(s.delivered_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>{s.read_at ? new Date(s.read_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>{s.reply_text || (s.button_clicked ? `כפתור: ${s.button_clicked}` : "—")}</td>
+                  </tr>
+                  {expandedId === s.send_id && (
+                    <tr key={s.send_id + "-chat"}>
+                      <td colSpan={8} style={{ background: "var(--sand)", padding: "1rem" }}>
+                        <div className="wa-preview" style={{ maxWidth: 340 }}>
+                          <div className="wa-bubble">
+                            <div className="wa-body">
+                              תבנית: {s.template_name}
+                              <div className="muted mono" style={{ fontSize: ".75rem", marginTop: "0.3rem" }}>
+                                {s.sent_at && `נשלח ${new Date(s.sent_at).toLocaleTimeString("he-IL")}`}
+                                {s.delivered_at && ` · נמסר ✓✓`}
+                                {s.read_at && ` · נקרא ✓✓`}
+                              </div>
+                            </div>
+                          </div>
+                          {(s.reply_text || s.button_clicked) && (
+                            <div className="wa-bubble" style={{ marginTop: "0.5rem", background: "#dcf8c6" }}>
+                              <div className="wa-body">
+                                {s.reply_text || `לחץ על כפתור: ${s.button_clicked}`}
+                              </div>
+                            </div>
+                          )}
+                          {!s.reply_text && !s.button_clicked && (
+                            <p className="muted" style={{ fontSize: ".8rem", marginTop: "0.5rem" }}>
+                              אין עדיין תגובה מאיש הקשר
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
               {sends.length === 0 && (
                 <tr>
