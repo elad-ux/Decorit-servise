@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import { type BroadcastBatch, type BroadcastSendRow, type SendStatusSummary, listBatches, listMessageStatus } from "../../lib/broadcast";
@@ -13,6 +13,12 @@ const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
   cancelled: "בוטל",
 };
 
+// Delivery/read/reply updates land in broadcast_sends the moment WhatsApp's
+// webhook fires (see Flow 1 — Is Status Update? / Is Broadcast Contact?),
+// completely independent of this page. Polling is what makes that already-
+// live backend state actually show up here without a manual reload.
+const POLL_INTERVAL_MS = 10000;
+
 export default function BroadcastStatus() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
@@ -21,10 +27,17 @@ export default function BroadcastStatus() {
   const [batches, setBatches] = useState<BroadcastBatch[]>([]);
   const [batchId, setBatchId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const batchIdRef = useRef(batchId);
+  batchIdRef.current = batchId;
 
-  async function load(selectedBatchId: string) {
-    setLoading(true);
+  async function load(selectedBatchId: string, silent = false) {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [res, b] = await Promise.all([listMessageStatus(sessionToken, selectedBatchId || undefined), listBatches(sessionToken)]);
@@ -32,15 +45,27 @@ export default function BroadcastStatus() {
       setSummary(res.summary);
       setBatches(b);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שגיאה בטעינת סטטוסים");
+      if (!silent) setError(err instanceof ApiError ? err.message : "שגיאה בטעינת סטטוסים");
     } finally {
-      setLoading(false);
+      if (silent) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     void load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void load(batchIdRef.current, true);
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -63,6 +88,11 @@ export default function BroadcastStatus() {
             </option>
           ))}
         </select>
+        {refreshing && (
+          <span className="muted" style={{ fontSize: ".8rem" }}>
+            מתעדכן...
+          </span>
+        )}
       </div>
 
       {summary && (
