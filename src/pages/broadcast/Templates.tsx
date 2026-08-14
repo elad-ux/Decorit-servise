@@ -31,7 +31,7 @@ type FormState = {
 
 const EMPTY_FORM: FormState = {
   name: "",
-  category: "",
+  category: "marketing",
   language: "he",
   header_type: "none",
   header_text: "",
@@ -61,6 +61,16 @@ const BUTTON_TYPE_LABEL: Record<TemplateButton["type"], string> = {
   quick_reply: "תשובה מהירה",
   url: "קישור",
   phone: "חיוג",
+};
+
+/**
+ * Meta's actual template categories. AUTHENTICATION isn't offered here —
+ * it requires a fixed OTP-style structure Meta auto-generates, not the
+ * free-form body/buttons this editor builds.
+ */
+const TEMPLATE_CATEGORY_LABEL: Record<string, string> = {
+  marketing: "MARKETING — שיווקי",
+  utility: "UTILITY — עדכון שירות",
 };
 
 const OPT_OUT_TEXT = 'השב "הסר" להסרה מרשימת התפוצות';
@@ -303,7 +313,7 @@ export default function BroadcastTemplates() {
                         setEditing({
                           id: t.id,
                           name: t.name,
-                          category: t.category ?? "",
+                          category: t.category && t.category in TEMPLATE_CATEGORY_LABEL ? t.category : "marketing",
                           language: t.language,
                           header_type: t.header_type,
                           header_text: t.header_text ?? "",
@@ -339,8 +349,14 @@ export default function BroadcastTemplates() {
                 <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
               </div>
               <div className="field">
-                <label>קטגוריה (marketing/utility/authentication)</label>
-                <input value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} />
+                <label>קטגוריית התבנית (לפי Meta)</label>
+                <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })}>
+                  {Object.entries(TEMPLATE_CATEGORY_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="field">

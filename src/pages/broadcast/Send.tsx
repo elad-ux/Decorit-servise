@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import {
@@ -10,7 +10,10 @@ import {
   listBatches,
   listCategories,
   listSendTemplates,
+  uploadBroadcastMedia,
 } from "../../lib/broadcast";
+
+const MEDIA_HEADER_TYPES = ["image", "video", "document"] as const;
 
 const BATCH_STATUS_LABEL: Record<string, string> = {
   scheduled: "מתוזמן",
@@ -43,11 +46,16 @@ export default function BroadcastSend() {
   const [cities, setCities] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [scheduledFor, setScheduledFor] = useState("");
+  const [campaignMediaUrl, setCampaignMediaUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [targetCount, setTargetCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const readyTemplates = templates.filter((t) => t.status === "approved" && !!t.meta_template_name);
+  const selectedTemplate = readyTemplates.find((t) => t.id === templateId);
+  const needsMedia = selectedTemplate ? (MEDIA_HEADER_TYPES as readonly string[]).includes(selectedTemplate.header_type) : false;
 
   async function load() {
     setLoading(true);
@@ -74,6 +82,22 @@ export default function BroadcastSend() {
     setTargetCount(null);
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const { url } = await uploadBroadcastMedia(sessionToken, file);
+      setCampaignMediaUrl(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בהעלאת הקובץ");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleCount() {
     setCounting(true);
     setError(null);
@@ -95,6 +119,10 @@ export default function BroadcastSend() {
       setError("בחרו תבנית קודם");
       return;
     }
+    if (needsMedia && !campaignMediaUrl) {
+      setError("התבנית הנבחרת דורשת מדיה בכותרת — יש להעלות קובץ קודם");
+      return;
+    }
     const template = readyTemplates.find((t) => t.id === templateId);
     const confirmMsg = scheduledFor
       ? `הקמפיין יתוזמן ל-${new Date(scheduledFor).toLocaleString("he-IL")} וישלח הודעות וואטסאפ אמיתיות ללקוחות. להמשיך?`
@@ -110,9 +138,11 @@ export default function BroadcastSend() {
         filter_cities: parseCommaList(cities),
         filter_categories: selectedCategories.length ? selectedCategories : undefined,
         scheduled_for: scheduledFor || undefined,
+        campaign_media_url: needsMedia ? campaignMediaUrl : undefined,
       });
       setNotice(`${res.queued} הודעות נכנסו לתור. ${res.note}`);
       setTargetCount(null);
+      setCampaignMediaUrl("");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה ביצירת הקמפיין");
@@ -152,6 +182,25 @@ export default function BroadcastSend() {
             ))}
           </select>
         </div>
+        {needsMedia && (
+          <div className="field">
+            <label>מדיה לכותרת ההודעה (נדרש לתבנית זו)</label>
+            <div className="toolbar" style={{ marginBottom: "0.4rem" }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ width: "auto" }}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? "מעלה..." : "בחירת קובץ"}
+              </button>
+              <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={(e) => void handleFileChange(e)} />
+              {campaignMediaUrl && <span className="muted mono">הועלה ✓</span>}
+            </div>
+            <input className="mono" value={campaignMediaUrl} onChange={(e) => setCampaignMediaUrl(e.target.value)} placeholder="או הדביקו כתובת URL" />
+          </div>
+        )}
         <div className="field">
           <label>ערים (מופרד בפסיקים, ריק = הכל)</label>
           <input value={cities} onChange={(e) => setCities(e.target.value)} placeholder="חיפה, תל אביב" />
