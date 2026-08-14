@@ -335,6 +335,10 @@ input {
   background: var(--success-500);
 }
 
+.user-avatar.role-whatsapp {
+  background: var(--ink);
+}
+
 .user-card-body {
   flex: 1 1 auto;
   min-width: 0;
@@ -375,6 +379,11 @@ input {
 .role-badge.role-warehouse {
   background: #e3ede3;
   color: var(--success-500);
+}
+
+.role-badge.role-whatsapp {
+  background: var(--sand);
+  color: var(--ink);
 }
 
 .user-card-actions {

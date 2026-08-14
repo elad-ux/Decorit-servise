@@ -17,7 +17,7 @@ export interface Session {
   expiresAtGuess: string;
 }
 
-const VALID_ROLES: Role[] = ["admin", "manager", "warehouse"];
+const VALID_ROLES: Role[] = ["admin", "manager", "warehouse", "whatsapp"];
 
 /** Defensive parse — never trust localStorage content as well-formed. */
 function readStoredSession(): Session | null {
