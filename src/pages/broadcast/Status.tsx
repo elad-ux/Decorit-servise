@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
-import { type BroadcastSendRow, type SendStatusSummary, listMessageStatus } from "../../lib/broadcast";
+import { type BroadcastBatch, type BroadcastSendRow, type SendStatusSummary, listBatches, listMessageStatus } from "../../lib/broadcast";
 
 const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
   queued: "בתור",
@@ -13,36 +13,87 @@ const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
   cancelled: "בוטל",
 };
 
+// Delivery/read/reply updates land in broadcast_sends the moment WhatsApp's
+// webhook fires (see Flow 1 — Is Status Update? / Is Broadcast Contact?),
+// completely independent of this page. Polling is what makes that already-
+// live backend state actually show up here without a manual reload.
+const POLL_INTERVAL_MS = 10000;
+
 export default function BroadcastStatus() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
   const [sends, setSends] = useState<BroadcastSendRow[]>([]);
   const [summary, setSummary] = useState<SendStatusSummary | null>(null);
+  const [batches, setBatches] = useState<BroadcastBatch[]>([]);
+  const [batchId, setBatchId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const batchIdRef = useRef(batchId);
+  batchIdRef.current = batchId;
 
-  async function load() {
-    setLoading(true);
+  async function load(selectedBatchId: string, silent = false) {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
-      const res = await listMessageStatus(sessionToken);
+      const [res, b] = await Promise.all([listMessageStatus(sessionToken, selectedBatchId || undefined), listBatches(sessionToken)]);
       setSends(res.sends);
       setSummary(res.summary);
+      setBatches(b);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שגיאה בטעינת סטטוסים");
+      if (!silent) setError(err instanceof ApiError ? err.message : "שגיאה בטעינת סטטוסים");
     } finally {
-      setLoading(false);
+      if (silent) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
-    void load();
+    void load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void load(batchIdRef.current, true);
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <div>
       {error && <div className="error-box">{error}</div>}
+
+      <div className="toolbar">
+        <select
+          className="input-inline"
+          value={batchId}
+          onChange={(e) => {
+            setBatchId(e.target.value);
+            void load(e.target.value);
+          }}
+        >
+          <option value="">כל הקמפיינים</option>
+          {batches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {new Date(b.created_at).toLocaleString("he-IL")} — {b.status}
+            </option>
+          ))}
+        </select>
+        {refreshing && (
+          <span className="muted" style={{ fontSize: ".8rem" }}>
+            מתעדכן...
+          </span>
+        )}
+      </div>
 
       {summary && (
         <div className="stat-row">
@@ -80,6 +131,9 @@ export default function BroadcastStatus() {
           <table>
             <thead>
               <tr>
+                <th>עסק</th>
+                <th>טלפון</th>
+                <th>תבנית</th>
                 <th>סטטוס</th>
                 <th>נשלח</th>
                 <th>נמסר</th>
@@ -89,7 +143,13 @@ export default function BroadcastStatus() {
             </thead>
             <tbody>
               {sends.map((s) => (
-                <tr key={s.id}>
+                <tr key={s.send_id}>
+                  <td>
+                    {s.business_name}
+                    {s.contact_name ? ` (${s.contact_name})` : ""}
+                  </td>
+                  <td className="mono">{s.phone}</td>
+                  <td>{s.template_name}</td>
                   <td>
                     <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
                     {s.error && <div className="muted" style={{ fontSize: ".75rem" }}>{s.error}</div>}
@@ -102,7 +162,7 @@ export default function BroadcastStatus() {
               ))}
               {sends.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     אין הודעות עדיין
                   </td>
                 </tr>

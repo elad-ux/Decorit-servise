@@ -1,5 +1,5 @@
 import { ENDPOINTS } from "./config";
-import { postAction } from "./api";
+import { postAction, postJson } from "./api";
 
 export interface BroadcastContact {
   id: string;
@@ -39,9 +39,10 @@ export interface BroadcastTemplate {
   id: string;
   name: string;
   meta_template_name: string | null;
+  meta_template_id: string | null;
   category: string | null;
   language: string;
-  header_type: "none" | "image" | "video" | "document";
+  header_type: "none" | "text" | "image" | "video" | "document";
   header_text: string | null;
   header_sample_media_url: string | null;
   body_text: string;
@@ -70,11 +71,14 @@ export interface BroadcastBatch {
   completed_at: string | null;
 }
 
+/**
+ * Shape of broadcast_status_view rows, exactly as list_message_status
+ * returns them — note it's `send_id`, not `id`, and there's no
+ * `contact_id` (the contact is denormalized inline instead).
+ */
 export interface BroadcastSendRow {
-  id: string;
+  send_id: string;
   batch_id: string;
-  contact_id: string;
-  template_id: string;
   status: "queued" | "sent" | "delivered" | "read" | "failed" | "skipped_optout" | "cancelled";
   error: string | null;
   sent_at: string | null;
@@ -83,6 +87,11 @@ export interface BroadcastSendRow {
   replied_at: string | null;
   reply_text: string | null;
   button_clicked: string | null;
+  business_name: string;
+  contact_name: string | null;
+  phone: string;
+  city: string | null;
+  template_name: string;
 }
 
 export interface SendStatusSummary {
@@ -165,8 +174,75 @@ export function upsertTemplate(sessionToken: string, template: Partial<Broadcast
   return templates(sessionToken, "upsert", template);
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // strip the "data:<mime>;base64," prefix — the server only wants the payload
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Uploads a template header image/video/document to Supabase Storage
+ * (bucket `broadcast-media`) via the dedicated upload-broadcast-media
+ * webhook — this is a plain single-purpose endpoint (base64 body), not
+ * one of the action-routed ones, so it doesn't go through postAction.
+ */
+export async function uploadBroadcastMedia(sessionToken: string, file: File): Promise<{ url: string }> {
+  const file_base64 = await fileToBase64(file);
+  return postJson(ENDPOINTS.uploadBroadcastMedia, {
+    session_token: sessionToken,
+    file_base64,
+    original_name: file.name,
+    mime_type: file.type || "application/octet-stream",
+  });
+}
+
 export function deleteTemplate(sessionToken: string, id: string): Promise<unknown> {
   return templates(sessionToken, "delete", { id });
+}
+
+/**
+ * Submits the template to Meta for approval (creates it via the WhatsApp
+ * Message Templates API) — n8n builds the Meta payload from the template's
+ * own fields server-side. Only valid for draft/rejected templates; sets
+ * status to "pending" on success. Fails if the template is currently
+ * pending review.
+ */
+export async function submitTemplateToMeta(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; meta_template_name: string }> {
+  return templates(sessionToken, "submit_to_meta", { id });
+}
+
+/**
+ * Polls Meta for the template's current review status and syncs it back
+ * (approved/rejected/pending + rejection_reason) to broadcast_templates.
+ */
+export async function refreshTemplateStatus(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; rejection_reason: string | null }> {
+  return templates(sessionToken, "refresh_status", { id });
+}
+
+/**
+ * Forces an immediate per-template sync against Meta (in addition to the
+ * automatic 15-minute reconcile job). Looks the template up by its stored
+ * meta_template_id first, falling back to name-based search — recovers even
+ * templates whose meta_template_name was never saved locally.
+ */
+export async function forceSyncTemplate(
+  sessionToken: string,
+  id: string,
+): Promise<{ status: string; meta_template_name: string; rejection_reason: string | null }> {
+  return templates(sessionToken, "force_sync", { id });
 }
 
 // ---- Send / campaigns ----

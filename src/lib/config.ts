@@ -25,6 +25,7 @@ export const ENDPOINTS = {
   broadcastContacts: `${API_ROOT}/dashboard/broadcast-contacts`,
   broadcastTemplates: `${API_ROOT}/dashboard/broadcast-templates`,
   broadcastSend: `${API_ROOT}/dashboard/broadcast-send`,
+  uploadBroadcastMedia: `${API_ROOT}/dashboard/upload-broadcast-media`,
 } as const;
 
 export const SESSION_STORAGE_KEY = "decorit_panel_session";
