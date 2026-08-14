@@ -50,7 +50,15 @@ export interface BroadcastTemplate {
   variables_used: string[] | null;
   has_optout_line: boolean;
   buttons: TemplateButton[] | null;
-  status: "draft" | "pending" | "approved" | "rejected";
+  /**
+   * deleted_from_meta: the template was deleted on Meta's side (confirmed),
+   * but the local row can't be deleted too — it's referenced by real send/
+   * batch history via a NO ACTION foreign key, so deleting it would corrupt
+   * that history. Kept as a distinct terminal state so it never gets
+   * confused with a genuine Meta rejection (which is a content problem, not
+   * "this template no longer exists").
+   */
+  status: "draft" | "pending" | "approved" | "rejected" | "deleted_from_meta";
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
