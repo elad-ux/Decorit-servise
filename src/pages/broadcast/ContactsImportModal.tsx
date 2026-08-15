@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
 import { parseCsv } from "../../lib/csv";
+import { ENCODING_OPTIONS, decodeCp862, decodeCsvBytes, encodingDisplayName } from "../../lib/csvEncoding";
 import {
   type ImportPreviewResult,
   confirmContactImport,
@@ -11,10 +12,12 @@ import {
 
 export default function ContactsImportModal({
   sessionToken,
+  existingCategoryNames,
   onClose,
   onImported,
 }: {
   sessionToken: string;
+  existingCategoryNames: string[];
   onClose: () => void;
   onImported: () => void;
 }) {
@@ -23,6 +26,9 @@ export default function ContactsImportModal({
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
   const [result, setResult] = useState<{ added: number; updated: number } | null>(null);
+  const [detectedEncoding, setDetectedEncoding] = useState<string | null>(null);
+  const [encodingConfident, setEncodingConfident] = useState(true);
+  const [rawBuffer, setRawBuffer] = useState<ArrayBuffer | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -34,8 +40,12 @@ export default function ContactsImportModal({
     setResult(null);
     setBusy(true);
     try {
-      const text = await file.text();
-      const rows = parseCsv(text);
+      const buffer = await file.arrayBuffer();
+      setRawBuffer(buffer);
+      const decoded = decodeCsvBytes(buffer);
+      setDetectedEncoding(decoded.encoding);
+      setEncodingConfident(decoded.confident);
+      const rows = parseCsv(decoded.text);
       if (rows.length === 0) {
         setError("הקובץ ריק או שלא זוהו בו שורות");
         return;
@@ -43,6 +53,24 @@ export default function ContactsImportModal({
       setPreview(await previewContactImport(sessionToken, rows));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בקריאת הקובץ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryWithEncoding(encoding: string) {
+    if (!rawBuffer) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const text =
+        encoding === "cp862" ? decodeCp862(new Uint8Array(rawBuffer)) : new TextDecoder(encoding, { fatal: false }).decode(rawBuffer);
+      setDetectedEncoding(encoding);
+      setEncodingConfident(true);
+      const rows = parseCsv(text);
+      setPreview(await previewContactImport(sessionToken, rows));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בקריאת הקובץ בקידוד זה");
     } finally {
       setBusy(false);
     }
@@ -106,6 +134,32 @@ export default function ContactsImportModal({
             עדכון לקיימים{preview.error_count > 0 && `, ${preview.error_count} שורות עם שגיאה (לא ייובאו)`}.
           </div>
 
+          {detectedEncoding && (
+            <div className={encodingConfident ? "callout-info" : "error-box"} style={{ marginTop: "0.75rem" }}>
+              <strong>קידוד שזוהה: {encodingDisplayName(detectedEncoding)}</strong>
+              {!encodingConfident && (
+                <p style={{ margin: "0.35rem 0 0" }}>
+                  לא הצלחתי לזהות את הקידוד בביטחון מלא — בדוק למטה שהעברית בעמודות ("עסק", "טלפון" וכו') נראית תקינה.
+                  אם לא, נסה קידוד אחר:
+                </p>
+              )}
+              {!encodingConfident && (
+                <div className="chip-row" style={{ marginTop: "0.5rem" }}>
+                  {ENCODING_OPTIONS.map((enc) => (
+                    <button
+                      key={enc}
+                      type="button"
+                      className={`chip${enc === detectedEncoding ? " chip-selected" : ""}`}
+                      onClick={() => void retryWithEncoding(enc)}
+                    >
+                      {encodingDisplayName(enc)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {preview.errors.length > 0 && (
             <div className="table-wrap" style={{ marginTop: "0.75rem" }}>
               <table>
@@ -145,7 +199,20 @@ export default function ContactsImportModal({
                       <td>{r.business_name}</td>
                       <td className="mono">{r.phone}</td>
                       <td>{r.city || "—"}</td>
-                      <td>{r.categories.join(", ") || "—"}</td>
+                      <td>
+                        {r.categories.length === 0
+                          ? "—"
+                          : r.categories.map((cat, i) => (
+                              <span key={cat}>
+                                {i > 0 && ", "}
+                                {existingCategoryNames.includes(cat) ? (
+                                  cat
+                                ) : (
+                                  <span title="קטגוריה חדשה — תיווצר אוטומטית">{cat} ✨</span>
+                                )}
+                              </span>
+                            ))}
+                      </td>
                       <td>
                         <span className={`pill ${r._status === "new" ? "pill-ok" : "pill-neutral"}`}>
                           {r._status === "new" ? "חדש" : "עדכון"}

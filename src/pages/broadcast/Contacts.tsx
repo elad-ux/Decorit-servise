@@ -340,6 +340,7 @@ export default function BroadcastContacts() {
       {importing && (
         <ContactsImportModal
           sessionToken={sessionToken}
+          existingCategoryNames={categories.map((c) => c.name)}
           onClose={() => setImporting(false)}
           onImported={() => void load()}
         />
