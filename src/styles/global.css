@@ -814,9 +814,18 @@ tbody tr:hover {
 /* ---- Template editor (form + live WhatsApp-style preview) ---- */
 .template-editor {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
+  /* minmax(0, ...) instead of bare fr: a plain "fr" track's minimum sizing
+     is "auto" (content-based), so wide, unbreakable content (a pasted
+     media URL, a long template body) forces the track past the modal's
+     actual width instead of shrinking to it — this was the real cause of
+     the templates editor overflowing sideways on mobile. */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+.template-editor > * {
+  min-width: 0;
 }
 
 .preview-label {
@@ -948,7 +957,7 @@ tbody tr:hover {
 
 @media (max-width: 640px) {
   .template-editor {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .wa-preview {
@@ -964,8 +973,9 @@ tbody tr:hover {
 }
 
 .templates-layout > .table-wrap {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .template-row {
