@@ -419,3 +419,22 @@ export function markReplySeen(sessionToken: string, sendId: string): Promise<unk
 export function setReplyTags(sessionToken: string, sendId: string, tags: string[]): Promise<unknown> {
   return send(sessionToken, "set_reply_tags", { send_id: sendId, tags });
 }
+
+export interface ConversationMessage {
+  id: string;
+  direction: "inbound" | "outbound";
+  body: string;
+  wa_message_id: string | null;
+  responded: boolean;
+  created_at: string;
+}
+
+/** Full message thread for one contact (broadcast_conversation_messages), unlike reply_text which only ever holds the latest reply. */
+export function listConversation(sessionToken: string, contactId: string): Promise<{ messages: ConversationMessage[] }> {
+  return send(sessionToken, "list_conversation", { contact_id: contactId });
+}
+
+/** Staff sends a free-form reply from the dashboard — only works while the contact's 24h WhatsApp session window is open. */
+export function sendReply(sessionToken: string, contactId: string, text: string): Promise<{ success: boolean; error?: string }> {
+  return send(sessionToken, "send_reply", { contact_id: contactId, text });
+}
