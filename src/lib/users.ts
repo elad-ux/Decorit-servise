@@ -35,3 +35,12 @@ export function upsertUser(sessionToken: string, user: UpsertUserInput): Promise
 export function setUserActive(sessionToken: string, id: string, active: boolean): Promise<{ user: AuthorizedUser }> {
   return manage(sessionToken, "set_active", { id, active });
 }
+
+/**
+ * Deletes every dashboard_sessions row for this user's phone, forcing an
+ * immediate logout (if currently connected) and requiring a fresh OTP
+ * login next time — whether or not they're connected right now.
+ */
+export function revokeSession(sessionToken: string, id: string): Promise<{ notice: string }> {
+  return manage(sessionToken, "revoke_session", { id });
+}

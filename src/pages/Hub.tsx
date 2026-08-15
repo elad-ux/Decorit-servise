@@ -1,49 +1,84 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import type { Role } from "../lib/api";
+import { myPermissions } from "../lib/permissions";
 import TopBar from "../components/TopBar";
 
 interface ModuleCard {
   title: string;
   description: string;
-  minRole?: Role[];
+  /** Any one of these feature keys grants visibility. Admin always sees everything. Omit for always-visible. */
+  requiredFeatureKeys?: string[];
   to?: string;
   /** Modules without `to` aren't built yet. */
   available: boolean;
 }
 
-const ROLE_LABEL: Record<Role, string> = {
+const ROLE_LABEL_OVERRIDES: Record<string, string> = {
   admin: "מנהל מערכת",
   manager: "מנהל",
   warehouse: "מחסן",
   whatsapp: "צוות תפוצות",
 };
 
+function roleLabel(role: string): string {
+  return ROLE_LABEL_OVERRIDES[role] ?? role;
+}
+
 const MODULES: ModuleCard[] = [
-  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", minRole: ["admin", "manager", "warehouse"], available: false },
-  { title: "מוצרים", description: "תיק מוצרים ורגולציה", minRole: ["admin", "manager", "warehouse"], available: false },
-  { title: "משתמשים", description: "ניהול צוות המערכת", minRole: ["admin"], to: "/users", available: true },
+  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", requiredFeatureKeys: ["containers"], available: false },
+  { title: "מוצרים", description: "תיק מוצרים ורגולציה", requiredFeatureKeys: ["products"], available: false },
+  { title: "משתמשים", description: "ניהול צוות המערכת", requiredFeatureKeys: ["users"], to: "/users", available: true },
   {
     title: "תפוצות",
     description: "אנשי קשר, תבניות ושליחת קמפיינים",
-    // Matches the server-side check on every broadcast endpoint (admin/whatsapp roles only).
-    minRole: ["admin", "whatsapp"],
+    requiredFeatureKeys: ["broadcast.contacts", "broadcast.templates", "broadcast.send", "broadcast.status"],
     to: "/broadcast",
     available: true,
   },
 ];
 
+const ADMIN_MODULES: ModuleCard[] = [
+  { title: "הרשאות", description: "קביעת מי רואה מה, לכל תפקיד", to: "/permissions", available: true },
+];
+
 export default function Hub() {
   const { session, logout } = useAuth();
+  const [featureKeys, setFeatureKeys] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    if (session.role === "admin") return; // bypass, no need to fetch
+    let cancelled = false;
+    myPermissions(session.sessionToken)
+      .then((keys) => {
+        if (!cancelled) setFeatureKeys(new Set(keys));
+      })
+      .catch(() => {
+        if (!cancelled) setFeatureKeys(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.sessionToken]);
+
   if (!session) return null; // RequireAuth guarantees this, but keeps TS happy
 
-  const visibleModules = MODULES.filter((m) => !m.minRole || m.minRole.includes(session.role));
+  const isAdmin = session.role === "admin";
+  const modules = isAdmin ? MODULES.concat(ADMIN_MODULES) : MODULES;
+  const visibleModules =
+    isAdmin || featureKeys
+      ? modules.filter(
+          (m) => isAdmin || !m.requiredFeatureKeys || m.requiredFeatureKeys.some((k) => featureKeys!.has(k)),
+        )
+      : [];
 
   return (
     <>
       <TopBar>
         <span className="whoami-name">
-          {session.name} <span className="whoami-role">· {ROLE_LABEL[session.role]}</span>
+          {session.name} <span className="whoami-role">· {roleLabel(session.role)}</span>
         </span>
         <button type="button" className="btn-link" onClick={logout}>
           יציאה

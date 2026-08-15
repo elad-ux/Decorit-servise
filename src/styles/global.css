@@ -339,6 +339,10 @@ input {
   background: var(--ink);
 }
 
+.user-avatar.role-custom {
+  background: var(--taupe-400);
+}
+
 .user-card-body {
   flex: 1 1 auto;
   min-width: 0;
@@ -384,6 +388,11 @@ input {
 .role-badge.role-whatsapp {
   background: var(--sand);
   color: var(--ink);
+}
+
+.role-badge.role-custom {
+  background: var(--sand);
+  color: var(--taupe-500);
 }
 
 .user-card-actions {
@@ -609,6 +618,39 @@ tbody tr:last-child td {
 
 tbody tr:hover {
   background: var(--clay-50);
+}
+
+/* ---- Permissions rules table ---- */
+.permissions-table th,
+.permissions-table td {
+  text-align: center;
+  white-space: normal;
+}
+
+.permissions-table th:first-child,
+.permissions-table td:first-child {
+  text-align: start;
+  white-space: nowrap;
+}
+
+.permissions-table .permissions-admin-col {
+  background: var(--clay-50);
+}
+
+.permissions-table input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+}
+
+.permissions-group-row td {
+  background: var(--sand);
+  font-weight: 700;
+  color: var(--taupe-500);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: start;
 }
 
 /* ---- Pills / status chips ---- */

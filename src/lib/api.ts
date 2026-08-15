@@ -10,13 +10,16 @@ export class ApiError extends Error {
 }
 
 /**
- * "whatsapp" is a scoped role: every broadcast endpoint (Contacts/Templates/
- * Send/Upload Media) already accepts `role === 'whatsapp' || role === 'admin'`
- * server-side — it just had no way to actually be assigned until the Users
- * page + Hub gating below wired it up. Users with this role see only the
- * broadcast module, nothing else (no Users page, no future containers/products).
+ * Roles are dynamic, not a fixed set: admins define them (name + which
+ * features they can see) from the "הרשאות" rules page, backed by the
+ * role_permissions table. "admin" is the one hardcoded exception — it's
+ * always full access everywhere, server-enforced, and not itself editable
+ * from that page (so the team can never lock itself out of admin access).
+ * A handful of built-in names (manager/warehouse/whatsapp) exist as
+ * pre-seeded starting points but carry no special meaning in code beyond
+ * whatever permissions are actually granted to them.
  */
-export type Role = "admin" | "manager" | "warehouse" | "whatsapp";
+export type Role = string;
 
 export interface OtpRequestResponse {
   status: "ok";
