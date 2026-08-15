@@ -756,6 +756,27 @@ tbody tr:hover {
   font-size: 0.72rem;
 }
 
+.chip-sm {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.68rem;
+}
+
+/* ---- Status dots (unread reply / opted-out indicator) ---- */
+.status-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+
+.status-dot-ok {
+  background: var(--success-500);
+}
+
+.status-dot-danger {
+  background: var(--danger-500);
+}
+
 /* ---- Modal ---- */
 .modal-backdrop {
   position: fixed;

@@ -28,6 +28,11 @@ export const ENDPOINTS = {
   uploadBroadcastMedia: `${API_ROOT}/dashboard/upload-broadcast-media`,
   manageUsers: `${API_ROOT}/dashboard/manage-users`,
   managePermissions: `${API_ROOT}/dashboard/manage-permissions`,
+  pushSubscriptions: `${API_ROOT}/dashboard/push-subscriptions`,
 } as const;
+
+/** Raw EC P-256 point, base64url — the public half of the VAPID keypair used to sign Web Push messages. Safe to ship client-side (that's its purpose). */
+export const VAPID_PUBLIC_KEY =
+  "BHvuyUMPqTmJaas7DnxfOTbV8uNnbrJvhOhsdqkhHFR1I3D3MDDP70HVnYRiqd0UNVazT-intGH26DGKJhIFqE8";
 
 export const SESSION_STORAGE_KEY = "decorit_panel_session";
