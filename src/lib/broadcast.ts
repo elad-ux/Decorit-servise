@@ -82,8 +82,7 @@ export interface BroadcastBatch {
 
 /**
  * Shape of broadcast_status_view rows, exactly as list_message_status
- * returns them — note it's `send_id`, not `id`, and there's no
- * `contact_id` (the contact is denormalized inline instead).
+ * returns them — note it's `send_id`, not `id`.
  */
 export interface BroadcastSendRow {
   send_id: string;
@@ -101,6 +100,12 @@ export interface BroadcastSendRow {
   phone: string;
   city: string | null;
   template_name: string;
+  /** When a dashboard user last opened this reply — null means unseen. Distinct from read_at, which is WhatsApp's own read receipt for the OUTGOING message. */
+  reply_seen_at: string | null;
+  reply_tags: string[];
+  contact_id: string;
+  opted_out: boolean;
+  opted_out_at: string | null;
 }
 
 export interface SendStatusSummary {
@@ -403,4 +408,14 @@ export async function listMessageStatus(
   batchId?: string,
 ): Promise<{ sends: BroadcastSendRow[]; summary: SendStatusSummary }> {
   return send(sessionToken, "list_message_status", batchId ? { batch_id: batchId } : {});
+}
+
+/** Marks a reply as seen by the current dashboard user — like opening an email. */
+export function markReplySeen(sessionToken: string, sendId: string): Promise<unknown> {
+  return send(sessionToken, "mark_reply_seen", { send_id: sendId });
+}
+
+/** Replaces the full tag set on a reply thread (e.g. "חשוב", "המשך_טיפול"). */
+export function setReplyTags(sessionToken: string, sendId: string, tags: string[]): Promise<unknown> {
+  return send(sessionToken, "set_reply_tags", { send_id: sendId, tags });
 }
