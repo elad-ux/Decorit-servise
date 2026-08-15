@@ -1,14 +1,17 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import {
   type BroadcastBatch,
   type BroadcastSendRow,
   type SendStatusSummary,
+  type ConversationMessage,
   listBatches,
   listMessageStatus,
   markReplySeen,
   setReplyTags,
+  listConversation,
+  sendReply,
 } from "../../lib/broadcast";
 
 const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
@@ -49,7 +52,12 @@ export default function BroadcastStatus() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [panelSend, setPanelSend] = useState<BroadcastSendRow | null>(null);
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const batchIdRef = useRef(batchId);
   batchIdRef.current = batchId;
 
@@ -89,13 +97,14 @@ export default function BroadcastStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  function toggleExpand(s: BroadcastSendRow) {
-    const isOpening = expandedId !== s.send_id;
-    setExpandedId(isOpening ? s.send_id : null);
+  function openPanel(s: BroadcastSendRow) {
+    setPanelSend(s);
+    setReplyText("");
+    setReplyError(null);
     // Mark as seen the moment a reply is actually opened — like email. Optimistic
     // local update so the dot clears instantly; the next poll will independently
     // confirm it from the server either way, so a failed background call here isn't destructive.
-    if (isOpening && hasReply(s) && !s.reply_seen_at) {
+    if (hasReply(s) && !s.reply_seen_at) {
       const now = new Date().toISOString();
       setSends((prev) => prev.map((row) => (row.send_id === s.send_id ? { ...row, reply_seen_at: now } : row)));
       void markReplySeen(sessionToken, s.send_id).catch(() => {
@@ -103,6 +112,61 @@ export default function BroadcastStatus() {
       });
     }
   }
+
+  function closePanel() {
+    setPanelSend(null);
+    setConversation([]);
+  }
+
+  async function loadConversation(contactId: string, silent = false) {
+    if (!silent) setConversationLoading(true);
+    try {
+      const res = await listConversation(sessionToken, contactId);
+      setConversation(res.messages);
+    } catch {
+      // best-effort — the panel still shows the last-known reply_text from the row itself
+    } finally {
+      if (!silent) setConversationLoading(false);
+    }
+  }
+
+  async function handleSendReply() {
+    if (!panelSend || !replyText.trim()) return;
+    setReplySending(true);
+    setReplyError(null);
+    try {
+      const res = await sendReply(sessionToken, panelSend.contact_id, replyText.trim());
+      if (!res.success) {
+        setReplyError(res.error || "שגיאה בשליחת ההודעה");
+        return;
+      }
+      setReplyText("");
+      void loadConversation(panelSend.contact_id, true);
+    } catch (err) {
+      setReplyError(err instanceof ApiError ? err.message : "שגיאה בשליחת ההודעה");
+    } finally {
+      setReplySending(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!panelSend) return;
+    void loadConversation(panelSend.contact_id);
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void loadConversation(panelSend.contact_id, true);
+    }, 2500);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelSend?.contact_id]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closePanel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function toggleTag(s: BroadcastSendRow, tag: string) {
     const had = s.reply_tags.includes(tag);
@@ -194,111 +258,44 @@ export default function BroadcastStatus() {
               {sends.map((s) => {
                 const unread = hasReply(s) && !s.reply_seen_at;
                 return (
-                  <Fragment key={s.send_id}>
-                    <tr onClick={() => toggleExpand(s)} style={{ cursor: "pointer" }} title="לחץ לתצוגת השיחה בוואטסאפ">
-                      <td>
-                        {s.opted_out ? (
-                          <span className="status-dot status-dot-danger" title="איש הקשר הוסר מרשימת התפוצה" />
-                        ) : unread ? (
-                          <span className="status-dot status-dot-ok" title="תשובה חדשה שלא נצפתה" />
-                        ) : null}
-                      </td>
-                      <td>
-                        {s.business_name}
-                        {s.contact_name ? ` (${s.contact_name})` : ""}
-                      </td>
-                      <td className="mono">{s.phone}</td>
-                      <td>{s.template_name}</td>
-                      <td>
-                        <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
-                        {s.error && (
-                          <div className="muted" style={{ fontSize: ".75rem" }}>
-                            {truncate(s.error, ERROR_PREVIEW_MAX)}
-                          </div>
-                        )}
-                      </td>
-                      <td>{s.sent_at ? new Date(s.sent_at).toLocaleString("he-IL") : "—"}</td>
-                      <td>{s.delivered_at ? new Date(s.delivered_at).toLocaleString("he-IL") : "—"}</td>
-                      <td>{s.read_at ? new Date(s.read_at).toLocaleString("he-IL") : "—"}</td>
-                      <td>
-                        {s.reply_text || (s.button_clicked ? `כפתור: ${s.button_clicked}` : "—")}
-                        {s.reply_tags.length > 0 && (
-                          <div className="chip-row" style={{ marginTop: "0.25rem" }}>
-                            {s.reply_tags.map((tag) => (
-                              <span key={tag} className="chip chip-static chip-sm">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                    {expandedId === s.send_id && (
-                      <tr key={s.send_id + "-chat"}>
-                        <td colSpan={9} style={{ background: "var(--sand)", padding: "1rem" }}>
-                          {s.opted_out && (
-                            <div className="error-box" style={{ maxWidth: 340, marginBottom: "0.75rem" }}>
-                              איש הקשר הוסר מרשימת התפוצה
-                              {s.opted_out_at && ` ב-${new Date(s.opted_out_at).toLocaleString("he-IL")}`}. לא יישלחו
-                              אליו הודעות תפוצה נוספות עד שמנהל יפעיל אותו מחדש בעמוד "אנשי קשר".
-                            </div>
-                          )}
-                          {s.error && (
-                            <div className="error-box" style={{ maxWidth: 340, marginBottom: "0.75rem" }}>
-                              <strong>שגיאה מלאה:</strong>
-                              <div style={{ marginTop: "0.25rem", whiteSpace: "pre-wrap" }}>{s.error}</div>
-                            </div>
-                          )}
-                          <div className="wa-preview" style={{ maxWidth: 340 }}>
-                            <div className="wa-bubble">
-                              <div className="wa-body">
-                                תבנית: {s.template_name}
-                                <div className="muted mono" style={{ fontSize: ".75rem", marginTop: "0.3rem" }}>
-                                  {s.sent_at && `נשלח ${new Date(s.sent_at).toLocaleTimeString("he-IL")}`}
-                                  {s.delivered_at && ` · נמסר ✓✓`}
-                                  {s.read_at && ` · נקרא ✓✓`}
-                                </div>
-                              </div>
-                            </div>
-                            {(s.reply_text || s.button_clicked) && (
-                              <div className="wa-bubble" style={{ marginTop: "0.5rem", background: "#dcf8c6" }}>
-                                <div className="wa-body">{s.reply_text || `לחץ על כפתור: ${s.button_clicked}`}</div>
-                              </div>
-                            )}
-                            {!s.reply_text && !s.button_clicked && (
-                              <p className="muted" style={{ fontSize: ".8rem", marginTop: "0.5rem" }}>
-                                אין עדיין תגובה מאיש הקשר
-                              </p>
-                            )}
-                          </div>
-                          {hasReply(s) && (
-                            <div className="field" style={{ marginTop: "0.75rem", maxWidth: 340 }}>
-                              <label>תגיות</label>
-                              <div className="chip-row">
-                                {REPLY_TAG_OPTIONS.map((tag) => {
-                                  const active = s.reply_tags.includes(tag);
-                                  return (
-                                    <button
-                                      key={tag}
-                                      type="button"
-                                      className={`chip${active ? " chip-selected" : ""}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        void toggleTag(s, tag);
-                                      }}
-                                    >
-                                      {active ? "✓ " : ""}
-                                      {tag}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                  <tr key={s.send_id} onClick={() => openPanel(s)} style={{ cursor: "pointer" }} title="לחץ לתצוגת השיחה בוואטסאפ">
+                    <td>
+                      {s.opted_out ? (
+                        <span className="status-dot status-dot-danger" title="איש הקשר הוסר מרשימת התפוצה" />
+                      ) : unread ? (
+                        <span className="status-dot status-dot-ok" title="תשובה חדשה שלא נצפתה" />
+                      ) : null}
+                    </td>
+                    <td>
+                      {s.business_name}
+                      {s.contact_name ? ` (${s.contact_name})` : ""}
+                    </td>
+                    <td className="mono">{s.phone}</td>
+                    <td>{s.template_name}</td>
+                    <td>
+                      <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
+                      {s.error && (
+                        <div className="muted" style={{ fontSize: ".75rem" }}>
+                          {truncate(s.error, ERROR_PREVIEW_MAX)}
+                        </div>
+                      )}
+                    </td>
+                    <td>{s.sent_at ? new Date(s.sent_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>{s.delivered_at ? new Date(s.delivered_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>{s.read_at ? new Date(s.read_at).toLocaleString("he-IL") : "—"}</td>
+                    <td>
+                      {s.reply_text || (s.button_clicked ? `כפתור: ${s.button_clicked}` : "—")}
+                      {s.reply_tags.length > 0 && (
+                        <div className="chip-row" style={{ marginTop: "0.25rem" }}>
+                          {s.reply_tags.map((tag) => (
+                            <span key={tag} className="chip chip-static chip-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
               {sends.length === 0 && (
@@ -311,6 +308,139 @@ export default function BroadcastStatus() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {panelSend && (
+        <>
+          <div
+            onClick={closePanel}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 40 }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              bottom: 0,
+              insetInlineEnd: 0,
+              width: "min(420px, 100vw)",
+              background: "var(--paper, #fff)",
+              boxShadow: "-4px 0 16px rgba(0,0,0,0.15)",
+              zIndex: 50,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "1rem", borderBottom: "1px solid var(--linen)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <strong style={{ fontSize: "1.05rem" }}>
+                  {panelSend.business_name}
+                  {panelSend.contact_name ? ` (${panelSend.contact_name})` : ""}
+                </strong>
+                <div className="muted mono" style={{ fontSize: ".85rem", marginTop: "0.2rem" }}>{panelSend.phone}</div>
+              </div>
+              <button type="button" className="btn-link" onClick={closePanel} aria-label="סגירה">✕</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "1rem" }}>
+              {panelSend.opted_out && (
+                <div className="error-box" style={{ marginBottom: "0.75rem" }}>
+                  איש הקשר הוסר מרשימת התפוצה
+                  {panelSend.opted_out_at && ` ב-${new Date(panelSend.opted_out_at).toLocaleString("he-IL")}`}.
+                  לא יישלחו אליו הודעות תפוצה נוספות עד שמנהל יפעיל אותו מחדש בעמוד "אנשי קשר".
+                </div>
+              )}
+              {panelSend.error && (
+                <div className="error-box" style={{ marginBottom: "0.75rem" }}>
+                  <strong>שגיאה מלאה:</strong>
+                  <div style={{ marginTop: "0.25rem", whiteSpace: "pre-wrap" }}>{panelSend.error}</div>
+                </div>
+              )}
+
+              {hasReply(panelSend) && (
+                <div className="field" style={{ marginBottom: "1rem" }}>
+                  <label>תגיות</label>
+                  <div className="chip-row">
+                    {REPLY_TAG_OPTIONS.map((tag) => {
+                      const active = panelSend.reply_tags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`chip${active ? " chip-selected" : ""}`}
+                          onClick={() => void toggleTag(panelSend, tag)}
+                        >
+                          {active ? "✓ " : ""}{tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="wa-preview">
+                <div className="wa-bubble">
+                  <div className="wa-body">
+                    תבנית: {panelSend.template_name}
+                    <div className="muted mono" style={{ fontSize: ".75rem", marginTop: "0.3rem" }}>
+                      {panelSend.sent_at && `נשלח ${new Date(panelSend.sent_at).toLocaleTimeString("he-IL")}`}
+                      {panelSend.delivered_at && ` · נמסר ✓✓`}
+                      {panelSend.read_at && ` · נקרא ✓✓`}
+                    </div>
+                  </div>
+                </div>
+
+                {conversationLoading ? (
+                  <p className="muted" style={{ fontSize: ".85rem", marginTop: "0.5rem" }}>טוען שיחה...</p>
+                ) : conversation.length > 0 ? (
+                  conversation.map((m) => (
+                    <div
+                      key={m.id}
+                      className="wa-bubble"
+                      style={{
+                        marginTop: "0.5rem",
+                        background: m.direction === "inbound" ? "#dcf8c6" : "var(--sand)",
+                        marginInlineStart: m.direction === "outbound" ? "2rem" : 0,
+                      }}
+                    >
+                      <div className="wa-body">
+                        {m.body}
+                        <div className="muted" style={{ fontSize: ".7rem", marginTop: "0.25rem" }}>
+                          {new Date(m.created_at).toLocaleString("he-IL")}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : panelSend.reply_text || panelSend.button_clicked ? (
+                  <div className="wa-bubble" style={{ marginTop: "0.5rem", background: "#dcf8c6" }}>
+                    <div className="wa-body">{panelSend.reply_text || `לחץ על כפתור: ${panelSend.button_clicked}`}</div>
+                  </div>
+                ) : (
+                  <p className="muted" style={{ fontSize: ".8rem", marginTop: "0.5rem" }}>אין עדיין תגובה מאיש הקשר</p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--linen)" }}>
+              {replyError && <div className="error-box" style={{ marginBottom: "0.5rem", fontSize: ".85rem" }}>{replyError}</div>}
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  className="input-inline"
+                  style={{ flex: 1 }}
+                  placeholder="כתוב תשובה..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !replySending) void handleSendReply();
+                  }}
+                />
+                <button type="button" className="btn" style={{ width: "auto" }} disabled={replySending || !replyText.trim()} onClick={() => void handleSendReply()}>
+                  {replySending ? "שולח..." : "שליחה"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
