@@ -23,6 +23,27 @@ export function parseCsv(text: string): Record<string, string>[] {
     });
 }
 
+/** Builds RFC4180 CSV text (quoting fields that need it) from a header row + data rows, with a BOM so Excel opens Hebrew content correctly. */
+export function buildCsv(headers: string[], rows: string[][]): string {
+  const escape = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const lines = [headers, ...rows].map((r) => r.map(escape).join(","));
+  return "﻿" + lines.join("\r\n");
+}
+
+/** Triggers a browser download of CSV text — file never touches a server, built and saved entirely client-side. */
+export function downloadCsv(filename: string, csvContent: string) {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  // Some browsers only honor `download` reliably when the anchor is in the DOM at click time.
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function parseCsvRows(text: string): string[][] {
   const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
   const delimiter = firstLine.split(";").length > firstLine.split(",").length ? ";" : ",";

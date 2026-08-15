@@ -2,19 +2,12 @@ import { useRef, useState } from "react";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
 import { parseCsv } from "../../lib/csv";
-import { type ImportPreviewResult, confirmContactImport, previewContactImport } from "../../lib/broadcast";
-
-const TEMPLATE_CSV = "שם העסק,איש קשר,טלפון,עיר,קטגוריה\nחנות לדוגמה,ישראל ישראלי,0501234567,תל אביב,לקוחות\n";
-
-function downloadTemplate() {
-  const blob = new Blob(["﻿" + TEMPLATE_CSV], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "תבנית_אנשי_קשר.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import {
+  type ImportPreviewResult,
+  confirmContactImport,
+  downloadContactImportTemplate,
+  previewContactImport,
+} from "../../lib/broadcast";
 
 export default function ContactsImportModal({
   sessionToken,
@@ -85,7 +78,7 @@ export default function ContactsImportModal({
         נקודה-פסיק). איש קשר עם מספר טלפון שכבר קיים במערכת יעודכן; מספר חדש יתווסף כאיש קשר חדש. קטגוריה שעדיין לא
         קיימת תיווצר אוטומטית.
       </p>
-      <button type="button" className="btn-link" onClick={downloadTemplate}>
+      <button type="button" className="btn-link" onClick={downloadContactImportTemplate}>
         הורדת קובץ לדוגמה
       </button>
 

@@ -8,6 +8,8 @@ import {
   type BroadcastContact,
   addCategory,
   deleteContact,
+  downloadContactImportTemplate,
+  downloadContactsCsv,
   listCategories,
   listContacts,
   markContactOptedOut,
@@ -183,8 +185,19 @@ export default function BroadcastContacts() {
         <button type="button" className="btn-link" onClick={handleAddCategory}>
           + קטגוריה חדשה
         </button>
+        <button type="button" className="btn-link" onClick={downloadContactImportTemplate}>
+          הורדת תבנית לייבוא
+        </button>
         <button type="button" className="btn-link" onClick={() => setImporting(true)}>
           ייבוא מקובץ
+        </button>
+        <button
+          type="button"
+          className="btn-link"
+          disabled={filtered.length === 0}
+          onClick={() => downloadContactsCsv(filtered)}
+        >
+          ייצוא לקובץ ({filtered.length})
         </button>
         <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
           + איש קשר חדש

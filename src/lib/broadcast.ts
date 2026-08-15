@@ -1,5 +1,6 @@
 import { ENDPOINTS } from "./config";
 import { postAction, postJson } from "./api";
+import { buildCsv, downloadCsv } from "./csv";
 
 export interface BroadcastContact {
   id: string;
@@ -201,6 +202,29 @@ export function confirmContactImport(
   sourceFile?: string,
 ): Promise<{ added: number; updated: number }> {
   return contacts(sessionToken, "import_confirm", { rows, source_file: sourceFile });
+}
+
+/** Column order shared by the import template and the export file, so a downloaded export can be re-imported as-is. */
+const CONTACT_CSV_HEADERS = ["שם העסק", "איש קשר", "טלפון", "עיר", "קטגוריה"];
+
+export function downloadContactImportTemplate() {
+  const csv = buildCsv(CONTACT_CSV_HEADERS, [["חנות לדוגמה", "ישראל ישראלי", "0501234567", "תל אביב", "לקוחות"]]);
+  downloadCsv("תבנית_אנשי_קשר.csv", csv);
+}
+
+/** Exports whatever contact rows the caller passes — the Contacts page passes its currently-filtered list, so this respects city/category/search filters already applied there. */
+export function downloadContactsCsv(rowsToExport: BroadcastContact[]) {
+  const rows = rowsToExport.map((c) => [
+    c.business_name,
+    c.contact_name ?? "",
+    c.phone,
+    c.city ?? "",
+    c.categories.map((cat) => cat.name).join("; "),
+    c.active ? "כן" : "לא",
+    c.opted_out ? "כן" : "לא",
+  ]);
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadCsv(`אנשי_קשר_${stamp}.csv`, buildCsv([...CONTACT_CSV_HEADERS, "פעיל", "הוסר מרשימת תפוצה"], rows));
 }
 
 export interface UpsertContactInput {
