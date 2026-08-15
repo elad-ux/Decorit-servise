@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
+import ContactsImportModal from "./ContactsImportModal";
 import {
   type BroadcastCategory,
   type BroadcastContact,
@@ -37,6 +38,7 @@ export default function BroadcastContacts() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const sessionToken = session?.sessionToken ?? "";
 
@@ -181,6 +183,9 @@ export default function BroadcastContacts() {
         <button type="button" className="btn-link" onClick={handleAddCategory}>
           + קטגוריה חדשה
         </button>
+        <button type="button" className="btn-link" onClick={() => setImporting(true)}>
+          ייבוא מקובץ
+        </button>
         <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
           + איש קשר חדש
         </button>
@@ -317,6 +322,14 @@ export default function BroadcastContacts() {
             </button>
           </form>
         </Modal>
+      )}
+
+      {importing && (
+        <ContactsImportModal
+          sessionToken={sessionToken}
+          onClose={() => setImporting(false)}
+          onImported={() => void load()}
+        />
       )}
     </div>
   );

@@ -147,6 +147,62 @@ export async function listDistinctCities(sessionToken: string): Promise<string[]
   return res.cities;
 }
 
+export interface ImportRowError {
+  row: number;
+  reason: string;
+}
+
+/**
+ * A normalized, validated import row exactly as import_preview returns it.
+ * import_confirm expects this same shape back verbatim (business_name,
+ * contact_name, phone, city, categories, _status) — no client-side
+ * reshaping needed, just pass the preview response's `rows` straight
+ * through once the user confirms.
+ */
+export interface ImportRow {
+  row: number;
+  business_name: string;
+  contact_name: string;
+  phone: string;
+  city: string;
+  categories: string[];
+  _status: "new" | "update";
+  _existingId: string | null;
+}
+
+export interface ImportPreviewResult {
+  total: number;
+  new_count: number;
+  update_count: number;
+  error_count: number;
+  errors: ImportRowError[];
+  rows: ImportRow[];
+}
+
+/**
+ * Validates + normalizes raw parsed spreadsheet rows (Hebrew headers שם
+ * העסק/איש קשר/טלפון/עיר/קטגוריה, or business_name/contact_name/phone/
+ * city/category — either works) and matches them against existing
+ * contacts by phone, without writing anything yet.
+ */
+export function previewContactImport(sessionToken: string, rows: Record<string, string>[]): Promise<ImportPreviewResult> {
+  return contacts(sessionToken, "import_preview", { rows });
+}
+
+/**
+ * Writes the rows from a previous import_preview call: creates new
+ * contacts / updates existing ones (matched by phone), and links
+ * categories by name — a category name not already in the system is
+ * created automatically, up to 3 categories per row.
+ */
+export function confirmContactImport(
+  sessionToken: string,
+  rows: ImportRow[],
+  sourceFile?: string,
+): Promise<{ added: number; updated: number }> {
+  return contacts(sessionToken, "import_confirm", { rows, source_file: sourceFile });
+}
+
 export interface UpsertContactInput {
   id?: string;
   business_name: string;
