@@ -13,6 +13,7 @@ import {
   uploadBroadcastMedia,
   upsertTemplate,
 } from "../../lib/broadcast";
+import { META_MEDIA_LIMITS, compressImageIfNeeded } from "../../lib/mediaLimits";
 
 type HeaderType = "none" | "text" | "image" | "video" | "document";
 
@@ -328,13 +329,40 @@ export default function BroadcastTemplates() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !editing) return;
-    setUploading(true);
     setError(null);
+
+    const mediaType = editing.header_type;
+    if (mediaType !== "image" && mediaType !== "video" && mediaType !== "document") return;
+    const limit = META_MEDIA_LIMITS[mediaType];
+
+    let toUpload: File = file;
+    if (mediaType === "image" && file.size > limit.bytes) {
+      toUpload = await compressImageIfNeeded(file, limit.bytes);
+    }
+
+    if (toUpload.size > limit.bytes) {
+      setError(
+        `הקובץ גדול מדי (${(toUpload.size / 1024 / 1024).toFixed(1)}MB) — Meta מגבילה ${HEADER_TYPE_LABEL[mediaType]} עד ${limit.label}.`,
+      );
+      return;
+    }
+
+    // Show the picked file immediately, before the upload even starts —
+    // don't make the person wait to confirm they chose the right file.
+    const localPreviewUrl = URL.createObjectURL(toUpload);
+    setEditing((prev) => (prev ? { ...prev, header_sample_media_url: localPreviewUrl } : prev));
+
+    setUploading(true);
     try {
-      const { url } = await uploadBroadcastMedia(sessionToken, file);
-      setEditing({ ...editing, header_sample_media_url: url });
+      const { url } = await uploadBroadcastMedia(sessionToken, toUpload);
+      setEditing((prev) => (prev ? { ...prev, header_sample_media_url: url } : prev));
+      URL.revokeObjectURL(localPreviewUrl);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שגיאה בהעלאת הקובץ");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "שגיאה בהעלאת הקובץ — התצוגה המקדימה עדיין מציגה את הקובץ שנבחר, אפשר לנסות שוב.",
+      );
     } finally {
       setUploading(false);
     }
