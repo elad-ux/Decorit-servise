@@ -10,6 +10,7 @@ import {
   createBatch,
   listBatches,
   listCategories,
+  listDistinctCities,
   listSendTemplates,
   uploadBroadcastMedia,
 } from "../../lib/broadcast";
@@ -26,27 +27,20 @@ const BATCH_STATUS_LABEL: Record<string, string> = {
   created: "נוצר",
 };
 
-function parseCommaList(v: string): string[] | undefined {
-  const items = v
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return items.length ? items : undefined;
-}
-
 export default function BroadcastSend() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
 
   const [templates, setTemplates] = useState<BroadcastTemplate[]>([]);
   const [categories, setCategories] = useState<BroadcastCategory[]>([]);
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
   const [batches, setBatches] = useState<BroadcastBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const [templateId, setTemplateId] = useState("");
-  const [cities, setCities] = useState("");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [scheduledFor, setScheduledFor] = useState("");
   const [campaignMediaUrl, setCampaignMediaUrl] = useState("");
@@ -65,9 +59,15 @@ export default function BroadcastSend() {
     setLoading(true);
     setError(null);
     try {
-      const [t, c, b] = await Promise.all([listSendTemplates(sessionToken), listCategories(sessionToken), listBatches(sessionToken)]);
+      const [t, c, cities, b] = await Promise.all([
+        listSendTemplates(sessionToken),
+        listCategories(sessionToken),
+        listDistinctCities(sessionToken),
+        listBatches(sessionToken),
+      ]);
       setTemplates(t);
       setCategories(c);
+      setAvailableCities(cities.slice().sort((a, b2) => a.localeCompare(b2, "he")));
       setBatches(b);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינה");
@@ -80,6 +80,11 @@ export default function BroadcastSend() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function toggleCity(name: string) {
+    setSelectedCities((prev) => (prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]));
+    setTargetCount(null);
+  }
 
   function toggleCategory(name: string) {
     setSelectedCategories((prev) => (prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]));
@@ -107,7 +112,7 @@ export default function BroadcastSend() {
     setError(null);
     try {
       const count = await countTarget(sessionToken, {
-        filter_cities: parseCommaList(cities),
+        filter_cities: selectedCities.length ? selectedCities : undefined,
         filter_categories: selectedCategories.length ? selectedCategories : undefined,
       });
       setTargetCount(count);
@@ -139,7 +144,7 @@ export default function BroadcastSend() {
     try {
       const res = await createBatch(sessionToken, {
         template_id: templateId,
-        filter_cities: parseCommaList(cities),
+        filter_cities: selectedCities.length ? selectedCities : undefined,
         filter_categories: selectedCategories.length ? selectedCategories : undefined,
         scheduled_for: scheduledFor || undefined,
         campaign_media_url: needsMedia ? campaignMediaUrl : undefined,
@@ -222,17 +227,29 @@ export default function BroadcastSend() {
           </div>
         )}
         <div className="field">
-          <label>ערים (מופרד בפסיקים, ריק = הכל)</label>
-          <input value={cities} onChange={(e) => setCities(e.target.value)} placeholder="חיפה, תל אביב" />
-        </div>
-        <div className="field">
           <label>תזמון (אופציונלי)</label>
           <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
         </div>
       </div>
 
       <div className="field">
-        <label>קטגוריות (ריק = הכל)</label>
+        <label>ערים (ריק = הכל)</label>
+        <div className="chip-row">
+          {availableCities.map((city) => {
+            const selected = selectedCities.includes(city);
+            return (
+              <button key={city} type="button" className={`chip${selected ? " chip-selected" : ""}`} onClick={() => toggleCity(city)}>
+                {selected ? "✓ " : ""}
+                {city}
+              </button>
+            );
+          })}
+          {availableCities.length === 0 && <span className="muted">אין עדיין ערים באנשי הקשר</span>}
+        </div>
+      </div>
+
+      <div className="field">
+        <label>קהל יעד — קטגוריות (ריק = הכל)</label>
         <div className="chip-row">
           {categories.map((cat) => {
             const selected = selectedCategories.includes(cat.name);
