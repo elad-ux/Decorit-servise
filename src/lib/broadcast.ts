@@ -141,6 +141,12 @@ export function addCategory(sessionToken: string, name: string): Promise<unknown
   return contacts(sessionToken, "add_category", { name });
 }
 
+/** Distinct city values already present on real contacts — powers the city chip picker on the Send page. */
+export async function listDistinctCities(sessionToken: string): Promise<string[]> {
+  const res = await contacts<{ cities: string[] }>(sessionToken, "distinct_values");
+  return res.cities;
+}
+
 export interface UpsertContactInput {
   id?: string;
   business_name: string;
