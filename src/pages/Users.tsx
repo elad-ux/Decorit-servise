@@ -5,21 +5,30 @@ import { ApiError } from "../lib/api";
 import type { Role } from "../lib/api";
 import Modal from "../components/Modal";
 import TopBar from "../components/TopBar";
-import { type AuthorizedUser, listUsers, setUserActive, upsertUser } from "../lib/users";
+import { listPermissions } from "../lib/permissions";
+import { type AuthorizedUser, listUsers, revokeSession, setUserActive, upsertUser } from "../lib/users";
 
-const ROLE_LABEL: Record<Role, string> = {
+const ROLE_LABEL_OVERRIDES: Record<string, string> = {
   admin: "מנהל מערכת",
   manager: "מנהל",
   warehouse: "מחסן",
   whatsapp: "צוות תפוצות (וואטסאפ בלבד)",
 };
 
-const ROLE_CLASS: Record<Role, string> = {
+const ROLE_CLASS_OVERRIDES: Record<string, string> = {
   admin: "role-admin",
   manager: "role-manager",
   warehouse: "role-warehouse",
   whatsapp: "role-whatsapp",
 };
+
+function roleLabel(role: string): string {
+  return ROLE_LABEL_OVERRIDES[role] ?? role;
+}
+
+function roleClass(role: string): string {
+  return ROLE_CLASS_OVERRIDES[role] ?? "role-custom";
+}
 
 type FormState = { id?: string; name: string; phone: string; role: Role };
 const EMPTY_FORM: FormState = { name: "", phone: "", role: "warehouse" };
@@ -40,6 +49,7 @@ export default function Users() {
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [roleOptions, setRoleOptions] = useState<string[]>(Object.keys(ROLE_LABEL_OVERRIDES));
 
   async function load() {
     setLoading(true);
@@ -55,6 +65,13 @@ export default function Users() {
 
   useEffect(() => {
     void load();
+    // Custom roles created via the permissions rules page need to show up
+    // here too, so admins can actually assign them to a user.
+    listPermissions(sessionToken)
+      .then((data) => setRoleOptions((prev) => Array.from(new Set([...prev, ...data.roles]))))
+      .catch(() => {
+        // non-fatal — fall back to the built-in role list
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -89,6 +106,20 @@ export default function Users() {
     }
   }
 
+  async function handleRevoke(u: AuthorizedUser) {
+    if (!confirm(`לנתק את ${u.name} מכל החיבורים הפעילים? הוא יידרש להתחבר מחדש עם קוד חדש.`)) return;
+    setBusyId(u.id);
+    setError(null);
+    try {
+      const { notice } = await revokeSession(sessionToken, u.id);
+      alert(notice);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בניתוק המשתמש");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <TopBar>
@@ -114,11 +145,11 @@ export default function Users() {
           <div className="user-grid">
             {users.map((u) => (
               <div key={u.id} className={`user-card${u.active ? "" : " user-card-inactive"}`}>
-                <div className={`user-avatar ${ROLE_CLASS[u.role]}`}>{initials(u.name)}</div>
+                <div className={`user-avatar ${roleClass(u.role)}`}>{initials(u.name)}</div>
                 <div className="user-card-body">
                   <h3>{u.name}</h3>
                   <p className="muted mono">{u.phone}</p>
-                  <span className={`chip chip-static role-badge ${ROLE_CLASS[u.role]}`}>{ROLE_LABEL[u.role]}</span>
+                  <span className={`chip chip-static role-badge ${roleClass(u.role)}`}>{roleLabel(u.role)}</span>
                 </div>
                 <div className="user-card-actions">
                   <button
@@ -135,6 +166,9 @@ export default function Users() {
                     onClick={() => setEditing({ id: u.id, name: u.name, phone: u.phone, role: u.role })}
                   >
                     עריכה
+                  </button>
+                  <button type="button" className="btn-link" disabled={busyId === u.id} onClick={() => void handleRevoke(u)}>
+                    נתק
                   </button>
                 </div>
               </div>
@@ -157,10 +191,10 @@ export default function Users() {
             </div>
             <div className="field">
               <label>תפקיד</label>
-              <select value={editing.role} onChange={(e) => setEditing({ ...editing, role: e.target.value as Role })}>
-                {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+              <select value={editing.role} onChange={(e) => setEditing({ ...editing, role: e.target.value })}>
+                {roleOptions.map((r) => (
                   <option key={r} value={r}>
-                    {ROLE_LABEL[r]}
+                    {roleLabel(r)}
                   </option>
                 ))}
               </select>

@@ -17,9 +17,12 @@ export interface Session {
   expiresAtGuess: string;
 }
 
-const VALID_ROLES: Role[] = ["admin", "manager", "warehouse", "whatsapp"];
-
-/** Defensive parse — never trust localStorage content as well-formed. */
+/**
+ * Defensive parse — never trust localStorage content as well-formed. Roles
+ * are dynamic (defined via the rules page), so this only checks shape, not
+ * membership in a fixed list — the server is what actually enforces role
+ * validity on every API call regardless of what's cached here.
+ */
 function readStoredSession(): Session | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
   if (!raw) return null;
@@ -31,7 +34,7 @@ function readStoredSession(): Session | null {
       typeof parsed.name === "string" &&
       typeof parsed.phone === "string" &&
       typeof parsed.role === "string" &&
-      (VALID_ROLES as string[]).includes(parsed.role) &&
+      parsed.role.length > 0 &&
       typeof parsed.expiresAtGuess === "string"
     ) {
       return parsed as Session;

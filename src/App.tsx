@@ -8,6 +8,7 @@ import BroadcastTemplates from "./pages/broadcast/Templates";
 import BroadcastSend from "./pages/broadcast/Send";
 import BroadcastStatus from "./pages/broadcast/Status";
 import Users from "./pages/Users";
+import Permissions from "./pages/Permissions";
 
 export default function App() {
   return (
@@ -27,6 +28,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Users />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/permissions"
+          element={
+            <RequireAuth>
+              <Permissions />
             </RequireAuth>
           }
         />
