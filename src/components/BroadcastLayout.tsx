@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import TopBar from "./TopBar";
+import PushToggle from "./PushToggle";
 import { useAuth } from "../lib/auth";
 
 const TABS = [
@@ -16,6 +17,7 @@ export default function BroadcastLayout() {
   return (
     <>
       <TopBar>
+        <PushToggle />
         <span className="whoami-name">{session.name}</span>
         <button type="button" className="btn-link" onClick={logout}>
           יציאה
