@@ -487,7 +487,10 @@ a.hub-card {
   font-weight: 600;
   color: var(--taupe-500);
   text-decoration: none;
+  border: none;
   border-block-end: 2px solid transparent;
+  background: none;
+  cursor: pointer;
   white-space: nowrap;
 }
 
