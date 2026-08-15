@@ -268,6 +268,17 @@ export function upsertTemplate(sessionToken: string, template: Partial<Broadcast
   return templates(sessionToken, "upsert", template);
 }
 
+export type AiContentSuggestion = {
+  suggested_text: string | null;
+  category: "marketing" | "utility";
+  confidence: "high" | "medium" | "low";
+  reasoning: string;
+};
+
+export function suggestTemplateContent(sessionToken: string, bodyText: string): Promise<{ suggestion: AiContentSuggestion }> {
+  return send(sessionToken, "ai_suggest_content", { body_text: bodyText });
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
