@@ -13,7 +13,9 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/";
+  const navState = location.state as { from?: { pathname: string }; sessionEndedByServer?: boolean } | null;
+  const from = navState?.from?.pathname ?? "/";
+  const sessionEndedByServer = navState?.sessionEndedByServer ?? false;
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
@@ -86,6 +88,9 @@ export default function Login() {
           <form onSubmit={handlePhoneSubmit} noValidate>
             <h1>כניסה לפאנל</h1>
             <p className="sub">נשלח קוד אימות בוואטסאפ למספר שלכם</p>
+            {sessionEndedByServer && !error && (
+              <div className="error-box">ההתחברות שלכם הסתיימה או נותקה. יש להתחבר מחדש.</div>
+            )}
             {error && <div className="error-box">{error}</div>}
             <div className="field">
               <label htmlFor="phone">מספר טלפון</label>

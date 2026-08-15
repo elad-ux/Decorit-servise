@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Navigate, useLocation } from "react-router-dom";
 import { SESSION_STORAGE_KEY } from "./config";
 import { verifyOtp, type Role } from "./api";
+import { onSessionInvalid } from "./sessionEvents";
 
 export interface Session {
   sessionToken: string;
@@ -47,6 +48,8 @@ function readStoredSession(): Session | null {
 
 interface AuthContextValue {
   session: Session | null;
+  /** Set when the last logout was the server rejecting our session_token (expired or admin-revoked), not an explicit "יציאה" click — lets Login show a distinct message. */
+  sessionEndedByServer: boolean;
   login: (phone: string, otpCode: string) => Promise<void>;
   logout: () => void;
 }
@@ -55,6 +58,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => readStoredSession());
+  const [sessionEndedByServer, setSessionEndedByServer] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -64,9 +68,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session]);
 
+  // Any authenticated API call that comes back 401 means the server no
+  // longer honors this session_token — react everywhere in the app, not
+  // just on whichever page happened to make that call.
+  useEffect(() => {
+    onSessionInvalid(() => {
+      setSession(null);
+      setSessionEndedByServer(true);
+    });
+    return () => onSessionInvalid(null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
+      sessionEndedByServer,
       async login(phone: string, otpCode: string) {
         const res = await verifyOtp(phone, otpCode);
         const expiresAtGuess = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
@@ -77,12 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           phone,
           expiresAtGuess,
         });
+        setSessionEndedByServer(false);
       },
       logout() {
         setSession(null);
+        setSessionEndedByServer(false);
       },
     }),
-    [session],
+    [session, sessionEndedByServer],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -96,10 +114,10 @@ export function useAuth(): AuthContextValue {
 
 /** Route guard: redirects to /login (preserving the intended destination) when logged out. */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { session, sessionEndedByServer } = useAuth();
   const location = useLocation();
   if (!session) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/login" replace state={{ from: location, sessionEndedByServer }} />;
   }
   return <>{children}</>;
 }
