@@ -116,6 +116,29 @@ function templateToPreviewForm(t: BroadcastTemplate): FormState {
   };
 }
 
+/**
+ * "EYtemplate_" + current time (HHMMSS, no separators) + "_" + current date
+ * (DDMMYYYY, no separators) — digits only after the prefix, so every new
+ * template gets a unique, valid Meta template name without the user having
+ * to think one up (WhatsApp template names must be simple slugs anyway).
+ */
+function generateTemplateName(): string {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const MM = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = now.getFullYear();
+  return `EYtemplate_${hh}${mm}${ss}_${dd}${MM}${yyyy}`;
+}
+
+/** Short single-line preview of a template's body, for the table row (no line breaks, capped length). */
+function previewText(text: string, max = 60): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? flat.slice(0, max).trim() + "…" : flat;
+}
+
 function buttonLimitWarning(buttons: TemplateButton[]): string | null {
   const urlCount = buttons.filter((b) => b.type === "url").length;
   const phoneCount = buttons.filter((b) => b.type === "phone").length;
@@ -126,6 +149,11 @@ function buttonLimitWarning(buttons: TemplateButton[]): string | null {
 }
 
 function TemplatePreview({ form }: { form: FormState }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => {
+    setImgFailed(false);
+  }, [form.header_sample_media_url]);
+
   const footer = form.has_optout_line
     ? form.footer_text
       ? `${form.footer_text} • ${OPT_OUT_TEXT}`
@@ -148,10 +176,10 @@ function TemplatePreview({ form }: { form: FormState }) {
 
         {form.header_type === "image" && (
           <div className="wa-header-media">
-            {form.header_sample_media_url ? (
-              <img src={form.header_sample_media_url} alt="" />
+            {form.header_sample_media_url && !imgFailed ? (
+              <img src={form.header_sample_media_url} alt="" onError={() => setImgFailed(true)} />
             ) : (
-              <span>🖼 תמונה (יש להעלות קובץ)</span>
+              <span>🖼 תמונה ({imgFailed ? "הקישור לתמונה לא תקין — יש להעלות קובץ מחדש" : "יש להעלות קובץ"})</span>
             )}
           </div>
         )}
@@ -251,6 +279,15 @@ export default function BroadcastTemplates() {
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!editing) return;
+    // A blob: URL is the local, in-tab-only preview set the instant a file
+    // is picked (before the real upload finishes) — it's meaningless outside
+    // this browser tab and must never be persisted. Belt-and-suspenders on
+    // top of disabling the Save button while uploading, in case of a
+    // race (e.g. Enter-key submit firing between the two state updates).
+    if (editing.header_sample_media_url.startsWith("blob:")) {
+      setError("הקובץ עדיין מועלה לשרת — יש להמתין לסיום ההעלאה לפני השמירה.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -417,7 +454,12 @@ export default function BroadcastTemplates() {
       {error && <div className="error-box">{error}</div>}
 
       <div className="toolbar">
-        <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ width: "auto" }}
+          onClick={() => setEditing({ ...EMPTY_FORM, name: generateTemplateName() })}
+        >
           + תבנית חדשה
         </button>
       </div>
@@ -430,7 +472,7 @@ export default function BroadcastTemplates() {
             <table>
               <thead>
                 <tr>
-                  <th>שם</th>
+                  <th>תוכן ההודעה</th>
                   <th>סטטוס</th>
                   <th>Meta</th>
                   <th>עודכן</th>
@@ -443,7 +485,7 @@ export default function BroadcastTemplates() {
                     className={`template-row${t.id === selectedId ? " template-row-selected" : ""}`}
                     onClick={() => setSelectedId(t.id)}
                   >
-                    <td>{t.name}</td>
+                    <td>{previewText(t.body_text)}</td>
                     <td>
                       <span className={`pill pill-status-${t.status}`}>{STATUS_LABEL[t.status]}</span>
                     </td>
@@ -729,8 +771,8 @@ export default function BroadcastTemplates() {
                 )}
               </div>
 
-              <button className="btn" type="submit" disabled={saving}>
-                {saving ? "שומר..." : "שמירה"}
+              <button className="btn" type="submit" disabled={saving || uploading}>
+                {saving ? "שומר..." : uploading ? "ממתין לסיום ההעלאה..." : "שמירה"}
               </button>
             </form>
 
