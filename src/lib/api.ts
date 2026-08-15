@@ -1,4 +1,5 @@
 import { ENDPOINTS } from "./config";
+import { notifySessionInvalid } from "./sessionEvents";
 
 export class ApiError extends Error {
   status: number;
@@ -59,6 +60,18 @@ export async function postJson<T>(url: string, body: unknown): Promise<T> {
   }
 
   const asRecord = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+
+  // A 401 on a request that carried a session_token means the server
+  // rejected that specific token — expired, or force-revoked by an admin
+  // (never a wrong-OTP/wrong-phone case, since those calls don't send one).
+  // Distinct from a 403, which means a real session that's just missing a
+  // specific permission — that should surface as an inline error, not a
+  // forced logout.
+  const hadSessionToken =
+    typeof body === "object" && body !== null && "session_token" in (body as Record<string, unknown>);
+  if (res.status === 401 && hadSessionToken) {
+    notifySessionInvalid();
+  }
 
   if (!res.ok) {
     const msg =
