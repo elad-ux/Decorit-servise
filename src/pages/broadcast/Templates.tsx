@@ -3,6 +3,7 @@ import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import {
+  type AiContentSuggestion,
   type BroadcastTemplate,
   type TemplateButton,
   deleteTemplate,
@@ -10,6 +11,7 @@ import {
   listTemplates,
   refreshTemplateStatus,
   submitTemplateToMeta,
+  suggestTemplateContent,
   uploadBroadcastMedia,
   upsertTemplate,
 } from "../../lib/broadcast";
@@ -206,6 +208,8 @@ export default function BroadcastTemplates() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<AiContentSuggestion | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = templates.find((t) => t.id === selectedId) ?? null;
@@ -366,6 +370,30 @@ export default function BroadcastTemplates() {
     } finally {
       setUploading(false);
     }
+  }
+
+  async function handleAiSuggest() {
+    if (!editing || !editing.body_text.trim()) return;
+    setAiSuggesting(true);
+    setError(null);
+    try {
+      const { suggestion } = await suggestTemplateContent(sessionToken, editing.body_text);
+      setAiSuggestion(suggestion);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בקבלת הצעת AI");
+    } finally {
+      setAiSuggesting(false);
+    }
+  }
+
+  function applyAiSuggestion() {
+    if (!editing || !aiSuggestion) return;
+    setEditing({
+      ...editing,
+      body_text: aiSuggestion.suggested_text ?? editing.body_text,
+      category: aiSuggestion.category,
+    });
+    setAiSuggestion(null);
   }
 
   function addButton() {
@@ -594,6 +622,41 @@ export default function BroadcastTemplates() {
                   value={editing.body_text}
                   onChange={(e) => setEditing({ ...editing, body_text: e.target.value })}
                 />
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={aiSuggesting || !editing.body_text.trim()}
+                  onClick={() => void handleAiSuggest()}
+                >
+                  {aiSuggesting ? "חושב..." : "✨ עזרה בניסוח AI"}
+                </button>
+                {aiSuggestion && (
+                  <div
+                    className="ai-suggestion-box"
+                    style={{ border: "1px solid var(--linen)", borderRadius: 8, padding: "0.75rem", marginTop: "0.5rem" }}
+                  >
+                    <p style={{ margin: 0, fontWeight: 600 }}>
+                      הצעת AI — קטגוריה: {aiSuggestion.category === "marketing" ? "MARKETING (שיווקי)" : "UTILITY (שירות)"}{" "}
+                      ({aiSuggestion.confidence === "high" ? "ודאות גבוהה" : aiSuggestion.confidence === "medium" ? "ודאות בינונית" : "ודאות נמוכה"})
+                    </p>
+                    <p className="muted" style={{ fontSize: ".85rem", margin: "0.25rem 0" }}>
+                      {aiSuggestion.reasoning}
+                    </p>
+                    {aiSuggestion.suggested_text && (
+                      <p style={{ background: "var(--sand)", padding: "0.5rem", borderRadius: 6, margin: "0.5rem 0" }}>
+                        {aiSuggestion.suggested_text}
+                      </p>
+                    )}
+                    <div className="button-row">
+                      <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={applyAiSuggestion}>
+                        החלפה בתוכן ובקטגוריה שהוצעו
+                      </button>
+                      <button type="button" className="btn-link" onClick={() => setAiSuggestion(null)}>
+                        התעלמות
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <p className="muted" style={{ marginTop: "0.25rem" }}>
                   להוספת משתנה: {"{{"}שם_עסק{"}}"} וכדומה (עברית/אנגלית, קו תחתון בלבד).
                 </p>
