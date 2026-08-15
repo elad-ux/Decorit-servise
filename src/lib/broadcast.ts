@@ -1,5 +1,6 @@
 import { ENDPOINTS } from "./config";
 import { postAction, postJson } from "./api";
+import { buildCsv, downloadCsv } from "./csv";
 
 export interface BroadcastContact {
   id: string;
@@ -145,6 +146,85 @@ export function addCategory(sessionToken: string, name: string): Promise<unknown
 export async function listDistinctCities(sessionToken: string): Promise<string[]> {
   const res = await contacts<{ cities: string[] }>(sessionToken, "distinct_values");
   return res.cities;
+}
+
+export interface ImportRowError {
+  row: number;
+  reason: string;
+}
+
+/**
+ * A normalized, validated import row exactly as import_preview returns it.
+ * import_confirm expects this same shape back verbatim (business_name,
+ * contact_name, phone, city, categories, _status) — no client-side
+ * reshaping needed, just pass the preview response's `rows` straight
+ * through once the user confirms.
+ */
+export interface ImportRow {
+  row: number;
+  business_name: string;
+  contact_name: string;
+  phone: string;
+  city: string;
+  categories: string[];
+  _status: "new" | "update";
+  _existingId: string | null;
+}
+
+export interface ImportPreviewResult {
+  total: number;
+  new_count: number;
+  update_count: number;
+  error_count: number;
+  errors: ImportRowError[];
+  rows: ImportRow[];
+}
+
+/**
+ * Validates + normalizes raw parsed spreadsheet rows (Hebrew headers שם
+ * העסק/איש קשר/טלפון/עיר/קטגוריה, or business_name/contact_name/phone/
+ * city/category — either works) and matches them against existing
+ * contacts by phone, without writing anything yet.
+ */
+export function previewContactImport(sessionToken: string, rows: Record<string, string>[]): Promise<ImportPreviewResult> {
+  return contacts(sessionToken, "import_preview", { rows });
+}
+
+/**
+ * Writes the rows from a previous import_preview call: creates new
+ * contacts / updates existing ones (matched by phone), and links
+ * categories by name — a category name not already in the system is
+ * created automatically, up to 3 categories per row.
+ */
+export function confirmContactImport(
+  sessionToken: string,
+  rows: ImportRow[],
+  sourceFile?: string,
+): Promise<{ added: number; updated: number }> {
+  return contacts(sessionToken, "import_confirm", { rows, source_file: sourceFile });
+}
+
+/** Column order shared by the import template and the export file, so a downloaded export can be re-imported as-is. */
+const CONTACT_CSV_HEADERS = ["שם העסק", "איש קשר", "טלפון", "עיר", "קטגוריה"];
+
+export function downloadContactImportTemplate() {
+  const csv = buildCsv(CONTACT_CSV_HEADERS, [["חנות לדוגמה", "ישראל ישראלי", "0501234567", "תל אביב", "לקוחות"]]);
+  downloadCsv("תבנית_אנשי_קשר.csv", csv);
+}
+
+/** Exports whatever contact rows the caller passes — the Contacts page passes its currently-filtered list, so this respects city/category/search filters already applied there. */
+export function downloadContactsCsv(rowsToExport: BroadcastContact[]) {
+  const rows = rowsToExport.map((c) => [
+    c.business_name,
+    c.contact_name ?? "",
+    c.phone,
+    c.city ?? "",
+    c.categories.map((cat) => cat.name).join("; "),
+    c.active ? "כן" : "לא",
+    c.opted_out ? "כן" : "לא",
+  ]);
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadCsv(`אנשי_קשר_${stamp}.csv`, buildCsv([...CONTACT_CSV_HEADERS, "פעיל", "הוסר מרשימת תפוצה"], rows));
 }
 
 export interface UpsertContactInput {
