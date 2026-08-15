@@ -6,6 +6,19 @@ export const META_MEDIA_LIMITS: Record<"image" | "video" | "document", { bytes: 
 };
 
 /**
+ * Uploads don't go straight to Meta — they go through our own n8n webhook
+ * as a base64-encoded JSON body first, which inflates size by ~33% on top
+ * of whatever proxy/gateway sits in front of that webhook (a very common
+ * default there is a 1MB request-body cap). A raw photo well under Meta's
+ * own 5MB image limit can still be big enough, once base64-inflated, to
+ * get silently rejected before it ever reaches our workflow — this is
+ * a separate, stricter budget than META_MEDIA_LIMITS specifically to keep
+ * the *upload request itself* small, independent of what Meta would
+ * ultimately accept.
+ */
+export const UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES = 1.5 * 1024 * 1024;
+
+/**
  * Re-encodes an image as JPEG, stepping quality down and (if still too big)
  * shrinking dimensions too, until it fits under maxBytes. Returns the
  * original file untouched if it's already under the limit. Non-image files

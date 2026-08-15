@@ -15,7 +15,7 @@ import {
   uploadBroadcastMedia,
   upsertTemplate,
 } from "../../lib/broadcast";
-import { META_MEDIA_LIMITS, compressImageIfNeeded } from "../../lib/mediaLimits";
+import { META_MEDIA_LIMITS, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES, compressImageIfNeeded } from "../../lib/mediaLimits";
 
 type HeaderType = "none" | "text" | "image" | "video" | "document";
 
@@ -377,8 +377,15 @@ export default function BroadcastTemplates() {
     const limit = META_MEDIA_LIMITS[mediaType];
 
     let toUpload: File = file;
-    if (mediaType === "image" && file.size > limit.bytes) {
-      toUpload = await compressImageIfNeeded(file, limit.bytes);
+    if (mediaType === "image") {
+      // Compress against whichever is smaller: Meta's own limit, or our
+      // upload transport's own safe budget — a file well under Meta's 5MB
+      // can still be large enough, once base64-inflated for the trip to
+      // our webhook, to get silently rejected before Meta ever sees it.
+      const compressionTarget = Math.min(limit.bytes, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES);
+      if (file.size > compressionTarget) {
+        toUpload = await compressImageIfNeeded(file, compressionTarget);
+      }
     }
 
     if (toUpload.size > limit.bytes) {
