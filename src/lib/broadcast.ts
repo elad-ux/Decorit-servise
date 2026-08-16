@@ -103,6 +103,14 @@ export interface BroadcastSendRow {
   phone: string;
   city: string | null;
   template_name: string;
+  template_category: string | null;
+  /** Raw template content — variables like {{שם_עסק}} are NOT substituted with real values here, this is the template's structure, not the specific message that was sent. */
+  template_body_text: string | null;
+  template_header_text: string | null;
+  template_footer_text: string | null;
+  template_header_type: "none" | "text" | "image" | "video" | "document" | null;
+  template_header_media_url: string | null;
+  template_buttons: TemplateButton[] | null;
   /** When a dashboard user last opened this reply — null means unseen. Distinct from read_at, which is WhatsApp's own read receipt for the OUTGOING message. */
   reply_seen_at: string | null;
   reply_tags: string[];
