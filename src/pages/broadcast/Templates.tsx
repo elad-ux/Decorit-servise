@@ -659,7 +659,14 @@ export default function BroadcastTemplates() {
             <form onSubmit={handleSave}>
               <div className="field">
                 <label>שם התבנית</label>
-                <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+                <input
+                  required
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value.replace(/[^\x20-\x7E]/g, "") })}
+                />
+                <p className="muted" style={{ marginTop: "0.25rem" }}>
+                  מותרים רק אותיות באנגלית, מספרים ותווים מיוחדים (לא עברית).
+                </p>
               </div>
               <div className="field">
                 <label>קטגוריית התבנית (לפי Meta)</label>
