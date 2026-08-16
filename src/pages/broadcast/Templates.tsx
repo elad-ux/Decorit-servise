@@ -6,12 +6,14 @@ import {
   type AiContentSuggestion,
   type BroadcastTemplate,
   type TemplateButton,
+  archiveTemplate,
   deleteTemplate,
   forceSyncTemplate,
   listTemplates,
   refreshTemplateStatus,
   submitTemplateToMeta,
   suggestTemplateContent,
+  unarchiveTemplate,
   uploadBroadcastMedia,
   upsertTemplate,
 } from "../../lib/broadcast";
@@ -238,6 +240,7 @@ export default function BroadcastTemplates() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiContentSuggestion | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = templates.find((t) => t.id === selectedId) ?? null;
@@ -262,8 +265,9 @@ export default function BroadcastTemplates() {
   async function load() {
     setLoading(true);
     setError(null);
+    setSelectedId(null);
     try {
-      setTemplates(await listTemplates(sessionToken));
+      setTemplates(await listTemplates(sessionToken, showArchived));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינת התבניות");
     } finally {
@@ -274,7 +278,7 @@ export default function BroadcastTemplates() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showArchived]);
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -323,6 +327,32 @@ export default function BroadcastTemplates() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה במחיקה");
+    }
+  }
+
+  async function handleArchive(t: BroadcastTemplate) {
+    setBusyId(t.id);
+    setError(null);
+    try {
+      await archiveTemplate(sessionToken, t.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בהעברה לארכיון");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleUnarchive(t: BroadcastTemplate) {
+    setBusyId(t.id);
+    setError(null);
+    try {
+      await unarchiveTemplate(sessionToken, t.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בהוצאה מהארכיון");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -471,6 +501,15 @@ export default function BroadcastTemplates() {
         </button>
       </div>
 
+      <nav className="tabs">
+        <button type="button" className={`tab${showArchived ? "" : " active"}`} onClick={() => setShowArchived(false)}>
+          פעילות
+        </button>
+        <button type="button" className={`tab${showArchived ? " active" : ""}`} onClick={() => setShowArchived(true)}>
+          ארכיון
+        </button>
+      </nav>
+
       {loading ? (
         <p className="muted">טוען...</p>
       ) : (
@@ -503,7 +542,7 @@ export default function BroadcastTemplates() {
                 {templates.length === 0 && (
                   <tr>
                     <td colSpan={4} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                      אין תבניות עדיין
+                      {showArchived ? "אין תבניות בארכיון" : "אין תבניות עדיין"}
                     </td>
                   </tr>
                 )}
@@ -585,6 +624,26 @@ export default function BroadcastTemplates() {
                     {" · "}
                   </>
                 )}
+                {selected.archived ? (
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busyId === selected.id}
+                    onClick={() => void handleUnarchive(selected)}
+                  >
+                    {busyId === selected.id ? "מוציא..." : "הוצאה מארכיון"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={busyId === selected.id}
+                    onClick={() => void handleArchive(selected)}
+                  >
+                    {busyId === selected.id ? "מעביר..." : "העברה לארכיון"}
+                  </button>
+                )}
+                {" · "}
                 <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(selected)}>
                   מחיקה
                 </button>

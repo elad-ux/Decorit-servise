@@ -63,6 +63,9 @@ export interface BroadcastTemplate {
   rejection_reason: string | null;
   created_at: string;
   updated_at: string;
+  /** Manually hidden from the default list (or auto-set when status becomes deleted_from_meta) — pass archived:true to listTemplates to see these instead. */
+  archived: boolean;
+  archived_at: string | null;
 }
 
 export interface BroadcastBatch {
@@ -264,9 +267,19 @@ export function reactivateContact(sessionToken: string, id: string): Promise<unk
 
 // ---- Templates ----
 
-export async function listTemplates(sessionToken: string): Promise<BroadcastTemplate[]> {
-  const res = await templates<{ templates: BroadcastTemplate[] }>(sessionToken, "list");
+export async function listTemplates(sessionToken: string, archived = false): Promise<BroadcastTemplate[]> {
+  const res = await templates<{ templates: BroadcastTemplate[] }>(sessionToken, "list", { archived });
   return res.templates;
+}
+
+/** Hides a template from the default list — also happens automatically when a template becomes deleted_from_meta. */
+export function archiveTemplate(sessionToken: string, id: string): Promise<unknown> {
+  return templates(sessionToken, "archive", { id });
+}
+
+/** Restores an archived template to the default list. */
+export function unarchiveTemplate(sessionToken: string, id: string): Promise<unknown> {
+  return templates(sessionToken, "unarchive", { id });
 }
 
 export function upsertTemplate(sessionToken: string, template: Partial<BroadcastTemplate>): Promise<unknown> {
