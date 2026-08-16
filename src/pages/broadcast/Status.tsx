@@ -42,6 +42,15 @@ function hasReply(s: BroadcastSendRow): boolean {
   return !!s.reply_text || !!s.button_clicked;
 }
 
+function documentFileName(url: string): string {
+  try {
+    const clean = url.split("?")[0];
+    return decodeURIComponent(clean.substring(clean.lastIndexOf("/") + 1)) || "מסמך";
+  } catch {
+    return "מסמך";
+  }
+}
+
 export default function BroadcastStatus() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
@@ -378,17 +387,58 @@ export default function BroadcastStatus() {
                 </div>
               )}
 
+              <p className="muted" style={{ fontSize: ".75rem", marginBottom: ".3rem" }} title="שם התבנית הפנימי">
+                תבנית: {panelSend.template_name}
+              </p>
+
               <div className="wa-preview">
                 <div className="wa-bubble">
+                  {panelSend.template_header_type === "text" && panelSend.template_header_text && (
+                    <div className="wa-header-text">{panelSend.template_header_text}</div>
+                  )}
+
+                  {panelSend.template_header_type === "image" && panelSend.template_header_media_url && (
+                    <div className="wa-header-media">
+                      <img src={panelSend.template_header_media_url} alt="" />
+                    </div>
+                  )}
+
+                  {panelSend.template_header_type === "video" && panelSend.template_header_media_url && (
+                    <div className="wa-header-media wa-header-media-video">
+                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                      <video src={panelSend.template_header_media_url} controls preload="metadata" />
+                    </div>
+                  )}
+
+                  {panelSend.template_header_type === "document" && panelSend.template_header_media_url && (
+                    <div className="wa-header-doc">
+                      <a href={panelSend.template_header_media_url} target="_blank" rel="noreferrer" className="wa-doc-link">
+                        📄 <span className="wa-doc-name">{documentFileName(panelSend.template_header_media_url)}</span>
+                      </a>
+                    </div>
+                  )}
+
                   <div className="wa-body">
-                    תבנית: {panelSend.template_name}
+                    {panelSend.template_body_text || `תבנית: ${panelSend.template_name}`}
                     <div className="muted mono" style={{ fontSize: ".75rem", marginTop: "0.3rem" }}>
                       {panelSend.sent_at && `נשלח ${new Date(panelSend.sent_at).toLocaleTimeString("he-IL")}`}
                       {panelSend.delivered_at && ` · נמסר ✓✓`}
                       {panelSend.read_at && ` · נקרא ✓✓`}
                     </div>
                   </div>
+                  {panelSend.template_footer_text && <div className="wa-footer">{panelSend.template_footer_text}</div>}
                 </div>
+                {panelSend.template_buttons && panelSend.template_buttons.length > 0 && (
+                  <div className="wa-buttons">
+                    {panelSend.template_buttons.map((b, i) => (
+                      <div key={i} className="wa-button">
+                        {b.type === "url" && "🔗 "}
+                        {b.type === "phone" && "📞 "}
+                        {b.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {conversationLoading ? (
                   <p className="muted" style={{ fontSize: ".85rem", marginTop: "0.5rem" }}>טוען שיחה...</p>
