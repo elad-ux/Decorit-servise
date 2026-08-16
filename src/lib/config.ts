@@ -29,6 +29,7 @@ export const ENDPOINTS = {
   manageUsers: `${API_ROOT}/dashboard/manage-users`,
   managePermissions: `${API_ROOT}/dashboard/manage-permissions`,
   pushSubscriptions: `${API_ROOT}/dashboard/push-subscriptions`,
+  broadcastActivityLog: `${API_ROOT}/dashboard/broadcast-activity-log`,
 } as const;
 
 /** Raw EC P-256 point, base64url — the public half of the VAPID keypair used to sign Web Push messages. Safe to ship client-side (that's its purpose). */
