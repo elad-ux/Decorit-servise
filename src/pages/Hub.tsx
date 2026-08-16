@@ -40,6 +40,7 @@ const MODULES: ModuleCard[] = [
 
 const ADMIN_MODULES: ModuleCard[] = [
   { title: "הרשאות", description: "קביעת מי רואה מה, לכל תפקיד", to: "/permissions", available: true },
+  { title: "לוג פעילות", description: "מי עשה מה ומתי בדשבורד", to: "/activity-log", available: true },
 ];
 
 export default function Hub() {

@@ -9,6 +9,7 @@ import BroadcastSend from "./pages/broadcast/Send";
 import BroadcastStatus from "./pages/broadcast/Status";
 import Users from "./pages/Users";
 import Permissions from "./pages/Permissions";
+import ActivityLog from "./pages/ActivityLog";
 
 export default function App() {
   return (
@@ -36,6 +37,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Permissions />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/activity-log"
+          element={
+            <RequireAuth>
+              <ActivityLog />
             </RequireAuth>
           }
         />
