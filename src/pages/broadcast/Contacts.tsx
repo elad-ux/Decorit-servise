@@ -41,6 +41,7 @@ export default function BroadcastContacts() {
   const [editing, setEditing] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const sessionToken = session?.sessionToken ?? "";
 
@@ -48,7 +49,10 @@ export default function BroadcastContacts() {
     setLoading(true);
     setError(null);
     try {
-      const [c, cats] = await Promise.all([listContacts(sessionToken), listCategories(sessionToken)]);
+      const [c, cats] = await Promise.all([
+        listContacts(sessionToken, showArchived ? "archived" : "active"),
+        listCategories(sessionToken),
+      ]);
       setContacts(c);
       setCategories(cats);
     } catch (err) {
@@ -61,7 +65,7 @@ export default function BroadcastContacts() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showArchived]);
 
   const cities = useMemo(
     () => Array.from(new Set(contacts.map((c) => c.city).filter((c): c is string => !!c))).sort(),
@@ -144,6 +148,17 @@ export default function BroadcastContacts() {
     }
   }
 
+  /** Undoes whichever archived state(s) a contact has — "לא פעיל" and "הוסר" are independent flags, so a contact can carry either or both. */
+  async function handleRestore(c: BroadcastContact) {
+    try {
+      if (!c.active) await setContactActive(sessionToken, c.id, true);
+      if (c.opted_out) await reactivateContact(sessionToken, c.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בשחזור");
+    }
+  }
+
   async function handleAddCategory() {
     const name = prompt("שם קטגוריה חדשה:");
     if (!name) return;
@@ -185,12 +200,16 @@ export default function BroadcastContacts() {
         <button type="button" className="btn-link" onClick={handleAddCategory}>
           + קטגוריה חדשה
         </button>
-        <button type="button" className="btn-link" onClick={downloadContactImportTemplate}>
-          הורדת תבנית לייבוא
-        </button>
-        <button type="button" className="btn-link" onClick={() => setImporting(true)}>
-          ייבוא מקובץ
-        </button>
+        {!showArchived && (
+          <>
+            <button type="button" className="btn-link" onClick={downloadContactImportTemplate}>
+              הורדת תבנית לייבוא
+            </button>
+            <button type="button" className="btn-link" onClick={() => setImporting(true)}>
+              ייבוא מקובץ
+            </button>
+          </>
+        )}
         <button
           type="button"
           className="btn-link"
@@ -199,10 +218,21 @@ export default function BroadcastContacts() {
         >
           ייצוא לקובץ ({filtered.length})
         </button>
-        <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
-          + איש קשר חדש
-        </button>
+        {!showArchived && (
+          <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
+            + איש קשר חדש
+          </button>
+        )}
       </div>
+
+      <nav className="tabs">
+        <button type="button" className={`tab${showArchived ? "" : " active"}`} onClick={() => setShowArchived(false)}>
+          אנשי קשר
+        </button>
+        <button type="button" className={`tab${showArchived ? " active" : ""}`} onClick={() => setShowArchived(true)}>
+          ארכיון
+        </button>
+      </nav>
 
       {loading ? (
         <p className="muted">טוען...</p>
@@ -216,8 +246,14 @@ export default function BroadcastContacts() {
                 <th>טלפון</th>
                 <th>עיר</th>
                 <th>קטגוריות</th>
-                <th>פעיל</th>
-                <th>הסרה</th>
+                {showArchived ? (
+                  <th>סטטוס</th>
+                ) : (
+                  <>
+                    <th>פעיל</th>
+                    <th>הסרה</th>
+                  </>
+                )}
                 <th></th>
               </tr>
             </thead>
@@ -241,48 +277,73 @@ export default function BroadcastContacts() {
                       </div>
                     )}
                   </td>
+                  {showArchived ? (
+                    <td>
+                      <div className="chip-row">
+                        {!c.active && <span className="chip chip-static">לא פעיל</span>}
+                        {c.opted_out && <span className="chip chip-static">הוסר</span>}
+                      </div>
+                    </td>
+                  ) : (
+                    <>
+                      <td>
+                        <button type="button" className={`pill ${c.active ? "pill-ok" : "pill-off"}`} onClick={() => void handleToggleActive(c)}>
+                          {c.active ? "פעיל" : "לא פעיל"}
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`pill ${c.opted_out ? "pill-danger" : "pill-neutral"}`}
+                          onClick={() => void handleOptOutToggle(c)}
+                        >
+                          {c.opted_out ? "הוסר" : "רשום"}
+                        </button>
+                      </td>
+                    </>
+                  )}
                   <td>
-                    <button type="button" className={`pill ${c.active ? "pill-ok" : "pill-off"}`} onClick={() => void handleToggleActive(c)}>
-                      {c.active ? "פעיל" : "לא פעיל"}
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={`pill ${c.opted_out ? "pill-danger" : "pill-neutral"}`}
-                      onClick={() => void handleOptOutToggle(c)}
-                    >
-                      {c.opted_out ? "הוסר" : "רשום"}
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn-link"
-                      onClick={() =>
-                        setEditing({
-                          id: c.id,
-                          business_name: c.business_name,
-                          contact_name: c.contact_name ?? "",
-                          phone: c.phone,
-                          city: c.city ?? "",
-                          categoryIds: c.categories.map((cat) => cat.id),
-                        })
-                      }
-                    >
-                      עריכה
-                    </button>
-                    {" · "}
-                    <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(c)}>
-                      מחיקה
-                    </button>
+                    {showArchived ? (
+                      <>
+                        <button type="button" className="btn-link" onClick={() => void handleRestore(c)}>
+                          שחזור
+                        </button>
+                        {" · "}
+                        <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(c)}>
+                          מחיקה לצמיתות
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          onClick={() =>
+                            setEditing({
+                              id: c.id,
+                              business_name: c.business_name,
+                              contact_name: c.contact_name ?? "",
+                              phone: c.phone,
+                              city: c.city ?? "",
+                              categoryIds: c.categories.map((cat) => cat.id),
+                            })
+                          }
+                        >
+                          עריכה
+                        </button>
+                        {" · "}
+                        <button type="button" className="btn-link btn-link-danger" onClick={() => void handleDelete(c)}>
+                          מחיקה
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                    אין אנשי קשר תואמים
+                  <td colSpan={showArchived ? 7 : 8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                    {showArchived ? "הארכיון ריק" : "אין אנשי קשר תואמים"}
                   </td>
                 </tr>
               )}
