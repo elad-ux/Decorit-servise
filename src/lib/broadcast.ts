@@ -144,8 +144,15 @@ function send<T>(sessionToken: string, action: string, payload?: unknown) {
 
 // ---- Contacts ----
 
-export async function listContacts(sessionToken: string): Promise<BroadcastContact[]> {
-  const res = await contacts<{ contacts: BroadcastContact[] }>(sessionToken, "list");
+/**
+ * `view: 'active'` (default) returns only active & non-opted-out contacts —
+ * the day-to-day working list. `view: 'archived'` returns everyone
+ * deactivated ("לא פעיל") or opted out ("הוסר"), so they stop cluttering the
+ * main list but stay reachable/restorable. Mirrors the listTemplates(archived)
+ * pattern used for templates.
+ */
+export async function listContacts(sessionToken: string, view: "active" | "archived" = "active"): Promise<BroadcastContact[]> {
+  const res = await contacts<{ contacts: BroadcastContact[] }>(sessionToken, "list", { view });
   return res.contacts;
 }
 
