@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { requestOtp, normalizePhoneForDisplay, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import TopBar from "../components/TopBar";
+import logoWordmark from "../assets/brand/logo-wordmark-cream.png";
+import logoMark from "../assets/brand/logo-mark-dark.png";
 
 type Step = "phone" | "code";
 
@@ -80,71 +81,83 @@ export default function Login() {
   }
 
   return (
-    <>
-      <TopBar />
-      <div className="centered-screen">
-        <div className="card">
-        {step === "phone" ? (
-          <form onSubmit={handlePhoneSubmit} noValidate>
-            <h1>כניסה לפאנל</h1>
-            <p className="sub">נשלח קוד אימות בוואטסאפ למספר שלכם</p>
-            {sessionEndedByServer && !error && (
-              <div className="error-box">ההתחברות שלכם הסתיימה או נותקה. יש להתחבר מחדש.</div>
-            )}
-            {error && <div className="error-box">{error}</div>}
-            <div className="field">
-              <label htmlFor="phone">מספר טלפון</label>
-              <input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="050-1234567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={busy}
-                autoFocus
-              />
-            </div>
-            <button className="btn" type="submit" disabled={busy || phone.trim().length === 0}>
-              {busy ? "שולח..." : "שלחו לי קוד"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleCodeSubmit} noValidate>
-            <h1>הזינו את הקוד</h1>
-            <p className="sub">שלחנו קוד בן 6 ספרות בוואטסאפ ל-{phone}</p>
-            {error && <div className="error-box">{error}</div>}
-            <div className="field">
-              <label htmlFor="otp">קוד אימות</label>
-              <input
-                id="otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="123456"
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                disabled={busy}
-                autoFocus
-              />
-            </div>
-            <button className="btn" type="submit" disabled={busy || otpCode.length !== 6}>
-              {busy ? "מאמת..." : "כניסה"}
-            </button>
-            <button
-              type="button"
-              className="btn-link"
-              disabled={resendCooldown > 0 || busy}
-              onClick={() => void sendOtp(phone)}
-            >
-              {resendCooldown > 0 ? `שליחה חוזרת בעוד ${resendCooldown} שנ'` : "שלחו קוד שוב"}
-            </button>
-          </form>
-        )}
+    <div className="login-shell">
+      <aside className="login-brand">
+        <div className="login-brand-dots" />
+        <div className="login-brand-blob login-brand-blob-a" />
+        <div className="login-brand-blob login-brand-blob-b" />
+        <div className="login-brand-content">
+          <img className="login-brand-logo" src={logoWordmark} alt="Decorit — Designing Your Dreams" />
+          <hr className="login-brand-rule" />
+          <p className="login-brand-tagline">יבוא ושיווק מוצרי עיצוב, וילונות ואביזרי דקורציה</p>
+          <p className="login-brand-sub">פאנל ניהול לצוות — מעקב מכולות, תפוצות ושירות לקוחות במקום אחד.</p>
+        </div>
+      </aside>
+
+      <div className="login-form-panel">
+        <div className="login-card">
+          <img className="login-card-logo" src={logoMark} alt="Decorit" />
+          {step === "phone" ? (
+            <form onSubmit={handlePhoneSubmit} noValidate>
+              <h1>כניסה לפאנל</h1>
+              <p className="sub">נשלח קוד אימות בוואטסאפ למספר שלכם</p>
+              {sessionEndedByServer && !error && (
+                <div className="error-box">ההתחברות שלכם הסתיימה או נותקה. יש להתחבר מחדש.</div>
+              )}
+              {error && <div className="error-box">{error}</div>}
+              <div className="field">
+                <label htmlFor="phone">מספר טלפון</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="050-1234567"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
+              <button className="btn" type="submit" disabled={busy || phone.trim().length === 0}>
+                {busy ? "שולח..." : "שלחו לי קוד"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleCodeSubmit} noValidate>
+              <h1>הזינו את הקוד</h1>
+              <p className="sub">שלחנו קוד בן 6 ספרות בוואטסאפ ל-{phone}</p>
+              {error && <div className="error-box">{error}</div>}
+              <div className="field">
+                <label htmlFor="otp">קוד אימות</label>
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  disabled={busy}
+                  autoFocus
+                />
+              </div>
+              <button className="btn" type="submit" disabled={busy || otpCode.length !== 6}>
+                {busy ? "מאמת..." : "כניסה"}
+              </button>
+              <button
+                type="button"
+                className="btn-link"
+                disabled={resendCooldown > 0 || busy}
+                onClick={() => void sendOtp(phone)}
+              >
+                {resendCooldown > 0 ? `שליחה חוזרת בעוד ${resendCooldown} שנ'` : "שלחו קוד שוב"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
