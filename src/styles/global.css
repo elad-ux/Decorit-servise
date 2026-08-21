@@ -17,6 +17,7 @@
   --danger-500: #a8473a;
   --danger-50: #f7e9e7;
   --success-500: #5e7b52;
+  --success-50: #eef2ec;
 
   --font-logo: "Cinzel", serif;
   --font-display: "Frank Ruhl Libre", serif;
@@ -1120,5 +1121,239 @@ tbody tr:hover {
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Login page: split brand panel + form card ----
+   Scoped under .login-* so it doesn't touch the shared .card/.btn/.field
+   rules other pages rely on. */
+
+.login-shell {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.login-brand {
+  position: relative;
+  flex: 1 1 440px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem clamp(1.5rem, 5vw, 4rem);
+  overflow: hidden;
+  background: radial-gradient(720px 480px at 80% 8%, rgba(181, 149, 127, 0.3), transparent 60%),
+    linear-gradient(155deg, var(--ink) 0%, var(--espresso) 46%, var(--clay-600) 130%);
+  color: var(--cream);
+}
+
+.login-brand-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(251, 250, 248, 0.22) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(circle at 32% 28%, black, transparent 68%);
+  mask-image: radial-gradient(circle at 32% 28%, black, transparent 68%);
+  opacity: 0.55;
+}
+
+.login-brand-blob {
+  position: absolute;
+  opacity: 0.5;
+}
+
+.login-brand-blob-a {
+  width: 320px;
+  height: 320px;
+  top: -70px;
+  inset-inline-end: -90px;
+  border-radius: 46px;
+  transform: rotate(20deg);
+  background: linear-gradient(135deg, rgba(251, 250, 248, 0.14), rgba(181, 149, 127, 0.2));
+}
+
+.login-brand-blob-b {
+  width: 240px;
+  height: 240px;
+  bottom: -60px;
+  inset-inline-start: -70px;
+  border-radius: 58px;
+  transform: rotate(-16deg);
+  background: linear-gradient(135deg, rgba(181, 149, 127, 0.22), rgba(251, 250, 248, 0.04));
+}
+
+.login-brand-content {
+  position: relative;
+  z-index: 1;
+  max-width: 400px;
+  animation: login-rise-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.login-brand-logo {
+  display: block;
+  width: min(230px, 58%);
+  height: auto;
+  margin-bottom: 2.2rem;
+}
+
+.login-brand-rule {
+  width: 40px;
+  height: 4px;
+  background: var(--clay-400);
+  border: none;
+  margin: 1.5rem 0;
+  border-radius: 999px;
+}
+
+.login-brand-tagline {
+  font-family: "Rubik", var(--font-body);
+  font-size: clamp(1.35rem, 2.6vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--paper);
+  margin: 0 0 1.1rem;
+}
+
+.login-brand-sub {
+  font-size: 0.95rem;
+  color: var(--taupe-300);
+  margin: 0;
+  max-width: 32ch;
+}
+
+.login-form-panel {
+  flex: 1 1 380px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+  background: var(--cream);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--paper);
+  border: 1px solid rgba(30, 27, 23, 0.05);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px -28px rgba(30, 27, 23, 0.32);
+  padding: 2.5rem;
+  animation: login-rise-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.1s;
+}
+
+.login-card-logo {
+  display: block;
+  width: 76px;
+  height: auto;
+  margin: 0 auto 1.9rem;
+}
+
+.login-card h1 {
+  font-family: "Rubik", var(--font-display);
+  font-weight: 700;
+  font-size: 1.55rem;
+  margin: 0 0 0.4rem;
+  color: var(--ink);
+}
+
+.login-card .sub {
+  font-size: 0.9rem;
+  color: var(--taupe-500);
+  margin: 0 0 1.75rem;
+}
+
+.login-card .field input {
+  height: 48px;
+  border-radius: 12px;
+  background: var(--cream);
+}
+
+.login-card .field input:focus {
+  background: var(--paper);
+  border-color: var(--clay-400);
+  box-shadow: 0 0 0 4px var(--clay-50);
+}
+
+.login-card .btn {
+  height: 48px;
+  background: linear-gradient(135deg, var(--clay-500), var(--clay-600));
+  box-shadow: 0 10px 24px -8px rgba(155, 122, 102, 0.55);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.login-card .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -8px rgba(155, 122, 102, 0.62);
+}
+
+.login-card .btn:disabled {
+  box-shadow: none;
+}
+
+.login-card .btn-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 0.65rem 0;
+}
+
+.login-card .error-box {
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1.1rem;
+}
+
+.login-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.login-success h1,
+.login-success .sub {
+  text-align: center;
+}
+
+.login-success-icon {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  background: var(--success-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.1rem;
+  box-shadow: 0 0 0 6px rgba(94, 123, 82, 0.09);
+}
+
+.login-demo-note {
+  background: var(--sand);
+  color: var(--taupe-500);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.8rem;
+  margin: 1.3rem 0 0;
+  line-height: 1.5;
+}
+
+@keyframes login-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-brand-content,
+  .login-card {
+    animation: none;
   }
 }
