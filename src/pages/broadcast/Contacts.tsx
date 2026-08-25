@@ -7,6 +7,7 @@ import {
   type BroadcastCategory,
   type BroadcastContact,
   addCategory,
+  bulkDeleteContacts,
   deleteContact,
   downloadContactImportTemplate,
   downloadContactsCsv,
@@ -42,12 +43,17 @@ export default function BroadcastContacts() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkAddCategoryId, setBulkAddCategoryId] = useState("");
+  const [bulkRemoveCategoryId, setBulkRemoveCategoryId] = useState("");
 
   const sessionToken = session?.sessionToken ?? "";
 
   async function load() {
     setLoading(true);
     setError(null);
+    setSelectedIds(new Set());
     try {
       const [c, cats] = await Promise.all([
         listContacts(sessionToken, showArchived ? "archived" : "active"),
@@ -85,6 +91,92 @@ export default function BroadcastContacts() {
       );
     });
   }, [contacts, search, cityFilter, categoryFilter]);
+
+  const selectedRows = useMemo(() => contacts.filter((c) => selectedIds.has(c.id)), [contacts, selectedIds]);
+
+  /** Categories every selected contact has in common — the only ones it makes sense to offer for bulk removal. */
+  const commonCategoryIds = useMemo(() => {
+    if (selectedRows.length === 0) return [];
+    const [first, ...rest] = selectedRows.map((c) => new Set(c.categories.map((cat) => cat.id)));
+    return categories.filter((cat) => first.has(cat.id) && rest.every((s) => s.has(cat.id))).map((cat) => cat.id);
+  }, [selectedRows, categories]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((c) => prev.has(c.id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map((c) => c.id));
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`למחוק ${selectedIds.size} אנשי קשר?`)) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      await bulkDeleteContacts(sessionToken, [...selectedIds]);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה במחיקה מרובה");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  /**
+   * There's no bulk category endpoint on the join table (the n8n
+   * bulk_update_category action writes the legacy unused `category`
+   * column, not broadcast_contact_categories) — so this reuses the
+   * same per-contact upsertContact path the single-edit form already
+   * goes through, once per selected contact.
+   */
+  async function bulkChangeCategory(categoryId: string, mode: "add" | "remove") {
+    if (selectedRows.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled(
+        selectedRows.map((c) => {
+          const current = c.categories.map((cat) => cat.id);
+          const next =
+            mode === "add"
+              ? current.includes(categoryId)
+                ? current
+                : [...current, categoryId]
+              : current.filter((id) => id !== categoryId);
+          return upsertContact(sessionToken, {
+            id: c.id,
+            business_name: c.business_name,
+            contact_name: c.contact_name,
+            phone: c.phone,
+            city: c.city,
+            category_ids: next,
+          });
+        }),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        setError(`עודכנו ${results.length - failed} מתוך ${results.length} — ${failed} נכשלו`);
+      }
+      setBulkAddCategoryId("");
+      setBulkRemoveCategoryId("");
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בעדכון קטגוריות");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   function toggleCategoryInForm(id: string) {
     if (!editing) return;
@@ -234,6 +326,51 @@ export default function BroadcastContacts() {
         </button>
       </nav>
 
+      {selectedIds.size > 0 && (
+        <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
+          <span className="muted">נבחרו {selectedIds.size}</span>
+          <button type="button" className="btn-link btn-link-danger" disabled={bulkBusy} onClick={() => void handleBulkDelete()}>
+            מחיקה מרובה
+          </button>
+          <select
+            className="input-inline"
+            value={bulkAddCategoryId}
+            disabled={bulkBusy || categories.length === 0}
+            onChange={(e) => {
+              const id = e.target.value;
+              setBulkAddCategoryId(id);
+              if (id) void bulkChangeCategory(id, "add");
+            }}
+          >
+            <option value="">הוספת קטגוריה...</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input-inline"
+            value={bulkRemoveCategoryId}
+            disabled={bulkBusy || commonCategoryIds.length === 0}
+            onChange={(e) => {
+              const id = e.target.value;
+              setBulkRemoveCategoryId(id);
+              if (id) void bulkChangeCategory(id, "remove");
+            }}
+          >
+            <option value="">{commonCategoryIds.length === 0 ? "אין קטגוריה משותפת להסרה" : "הסרת קטגוריה..."}</option>
+            {categories
+              .filter((cat) => commonCategoryIds.includes(cat.id))
+              .map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
       {loading ? (
         <p className="muted">טוען...</p>
       ) : (
@@ -241,6 +378,14 @@ export default function BroadcastContacts() {
           <table>
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))}
+                    onChange={toggleSelectAllFiltered}
+                    aria-label="בחירת הכל"
+                  />
+                </th>
                 <th>עסק</th>
                 <th>איש קשר</th>
                 <th>טלפון</th>
@@ -260,6 +405,14 @@ export default function BroadcastContacts() {
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      aria-label={`בחירת ${c.business_name}`}
+                    />
+                  </td>
                   <td>{c.business_name}</td>
                   <td>{c.contact_name || "—"}</td>
                   <td className="mono">{c.phone}</td>
@@ -342,7 +495,7 @@ export default function BroadcastContacts() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={showArchived ? 7 : 8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={showArchived ? 8 : 9} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     {showArchived ? "הארכיון ריק" : "אין אנשי קשר תואמים"}
                   </td>
                 </tr>
