@@ -36,6 +36,21 @@ export interface TemplateButton {
   value: string;
 }
 
+/**
+ * One card of a media-card carousel template (Meta's "carousel" header
+ * type — up to 10 cards, each its own image/video + optional body text +
+ * up to 2 buttons). Only set when header_type === 'carousel'; the
+ * template's own header_text/header_sample_media_url/footer_text are
+ * unused in that case (Meta's carousel structure has no FOOTER, and the
+ * per-card media replaces the single header).
+ */
+export interface TemplateCarouselCard {
+  header_type: "image" | "video";
+  header_sample_media_url: string;
+  body_text: string | null;
+  buttons: TemplateButton[];
+}
+
 export interface BroadcastTemplate {
   id: string;
   name: string;
@@ -43,7 +58,7 @@ export interface BroadcastTemplate {
   meta_template_id: string | null;
   category: string | null;
   language: string;
-  header_type: "none" | "text" | "image" | "video" | "document";
+  header_type: "none" | "text" | "image" | "video" | "document" | "carousel";
   header_text: string | null;
   header_sample_media_url: string | null;
   body_text: string;
@@ -51,6 +66,7 @@ export interface BroadcastTemplate {
   variables_used: string[] | null;
   has_optout_line: boolean;
   buttons: TemplateButton[] | null;
+  carousel_cards: TemplateCarouselCard[] | null;
   /**
    * deleted_from_meta: the template was deleted on Meta's side (confirmed),
    * but the local row can't be deleted too — it's referenced by real send/
