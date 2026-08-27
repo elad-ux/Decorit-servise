@@ -107,6 +107,82 @@ function substituteVars(text: string, examples: Record<string, string>): string 
   });
 }
 
+const SUPPORTED_VARIABLES: { key: string; label: string }[] = [
+  { key: "שם_עסק", label: "שם העסק" },
+  { key: "שם_איש_קשר", label: "איש קשר" },
+  { key: "עיר", label: "עיר" },
+  { key: "קטגוריה", label: "קטגוריה" },
+];
+
+function insertVariable(
+  el: HTMLTextAreaElement | null,
+  value: string,
+  onChange: (next: string) => void,
+  varKey: string,
+) {
+  const token = `{{${varKey}}}`;
+  if (!el) {
+    onChange(value + token);
+    return;
+  }
+  const start = el.selectionStart ?? value.length;
+  const end = el.selectionEnd ?? value.length;
+  const next = value.slice(0, start) + token + value.slice(end);
+  onChange(next);
+  requestAnimationFrame(() => {
+    el.focus();
+    const pos = start + token.length;
+    el.setSelectionRange(pos, pos);
+  });
+}
+
+const FORMAT_BUTTONS: { label: string; marker: string; title: string; style: React.CSSProperties }[] = [
+  { label: "B", marker: "*", title: "מודגש", style: { fontWeight: 700 } },
+  { label: "I", marker: "_", title: "נטוי", style: { fontStyle: "italic" } },
+  { label: "S", marker: "~", title: "קו חוצה", style: { textDecoration: "line-through" } },
+  { label: "</>", marker: "```", title: "טקסט קוד (מונוספייס)", style: { fontFamily: "monospace" } },
+];
+
+function wrapSelection(
+  el: HTMLTextAreaElement | null,
+  value: string,
+  onChange: (next: string) => void,
+  marker: string,
+) {
+  if (!el) return;
+  const start = el.selectionStart ?? value.length;
+  const end = el.selectionEnd ?? value.length;
+  const selected = value.slice(start, end);
+  const inner = selected || "טקסט";
+  const next = value.slice(0, start) + marker + inner + marker + value.slice(end);
+  onChange(next);
+  requestAnimationFrame(() => {
+    el.focus();
+    const newStart = start + marker.length;
+    el.setSelectionRange(newStart, newStart + inner.length);
+  });
+}
+
+/** Renders WhatsApp's own formatting markers (*bold*, _italic_, ~strike~, ```mono```) as real styling — WhatsApp has no underline, so it isn't offered here. */
+function renderWaFormattedText(text: string): React.ReactNode {
+  const parts = text.split(/(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|```[^`\n]+```)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("```") && part.endsWith("```") && part.length > 6) {
+      return <code key={i}>{part.slice(3, -3)}</code>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <strong key={i}>{part.slice(1, -1)}</strong>;
+    }
+    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith("~") && part.endsWith("~") && part.length > 2) {
+      return <s key={i}>{part.slice(1, -1)}</s>;
+    }
+    return part;
+  });
+}
+
 function templateToPreviewForm(t: BroadcastTemplate): FormState {
   return {
     id: t.id,
@@ -228,7 +304,9 @@ function TemplatePreview({ form }: { form: FormState }) {
           </div>
         )}
 
-        <div className="wa-body">{substituteVars(form.body_text, form.variable_examples) || "(גוף ההודעה יופיע כאן)"}</div>
+        <div className="wa-body">
+          {form.body_text ? renderWaFormattedText(substituteVars(form.body_text, form.variable_examples)) : "(גוף ההודעה יופיע כאן)"}
+        </div>
         {footer && <div className="wa-footer">{footer}</div>}
       </div>
       {form.buttons.length > 0 && (
@@ -258,7 +336,9 @@ function TemplatePreview({ form }: { form: FormState }) {
                   <span>{card.header_type === "video" ? "🎬" : "🖼"}</span>
                 )}
               </div>
-              {card.body_text && <div className="wa-carousel-card-body">{substituteVars(card.body_text, form.variable_examples)}</div>}
+              {card.body_text && (
+                <div className="wa-carousel-card-body">{renderWaFormattedText(substituteVars(card.body_text, form.variable_examples))}</div>
+              )}
               {card.buttons.length > 0 && (
                 <div className="wa-carousel-card-buttons">
                   {card.buttons.map((b, bi) => (
@@ -294,6 +374,8 @@ export default function BroadcastTemplates() {
   const [aiSuggestion, setAiSuggestion] = useState<AiContentSuggestion | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const cardTextareaRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
 
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
@@ -902,13 +984,46 @@ export default function BroadcastTemplates() {
                         style={{ marginBottom: "0.4rem" }}
                       />
 
+                      <div className="button-row" style={{ marginBottom: "0.3rem" }}>
+                        {FORMAT_BUTTONS.map((f) => (
+                          <button
+                            key={f.marker}
+                            type="button"
+                            className="btn-link"
+                            title={f.title}
+                            style={f.style}
+                            onClick={() =>
+                              wrapSelection(cardTextareaRefs.current[i] ?? null, card.body_text ?? "", (next) => updateCard(i, { body_text: next }), f.marker)
+                            }
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
                       <textarea
+                        ref={(el) => {
+                          cardTextareaRefs.current[i] = el;
+                        }}
                         rows={2}
                         value={card.body_text ?? ""}
                         onChange={(e) => updateCard(i, { body_text: e.target.value })}
                         placeholder="טקסט הכרטיס (אופציונלי — אם כרטיס אחד מקבל טקסט, כולם חייבים)"
-                        style={{ marginBottom: "0.4rem" }}
+                        style={{ marginBottom: "0.3rem" }}
                       />
+                      <div className="chip-row" style={{ marginBottom: "0.4rem" }}>
+                        {SUPPORTED_VARIABLES.map((v) => (
+                          <button
+                            key={v.key}
+                            type="button"
+                            className="chip"
+                            onClick={() =>
+                              insertVariable(cardTextareaRefs.current[i] ?? null, card.body_text ?? "", (next) => updateCard(i, { body_text: next }), v.key)
+                            }
+                          >
+                            + {v.label}
+                          </button>
+                        ))}
+                      </div>
 
                       {card.buttons.map((b, bi) => (
                         <div key={bi} className="button-row">
@@ -954,12 +1069,43 @@ export default function BroadcastTemplates() {
 
               <div className="field">
                 <label>גוף ההודעה</label>
+                <div className="button-row" style={{ marginBottom: "0.35rem" }}>
+                  {FORMAT_BUTTONS.map((f) => (
+                    <button
+                      key={f.marker}
+                      type="button"
+                      className="btn-link"
+                      title={f.title}
+                      style={f.style}
+                      onClick={() =>
+                        wrapSelection(bodyTextareaRef.current, editing.body_text, (next) => setEditing({ ...editing, body_text: next }), f.marker)
+                      }
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
                 <textarea
+                  ref={bodyTextareaRef}
                   required
                   rows={4}
                   value={editing.body_text}
                   onChange={(e) => setEditing({ ...editing, body_text: e.target.value })}
                 />
+                <div className="chip-row" style={{ marginTop: "0.35rem" }}>
+                  {SUPPORTED_VARIABLES.map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      className="chip"
+                      onClick={() =>
+                        insertVariable(bodyTextareaRef.current, editing.body_text, (next) => setEditing({ ...editing, body_text: next }), v.key)
+                      }
+                    >
+                      + {v.label}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   className="btn-link"
@@ -996,7 +1142,7 @@ export default function BroadcastTemplates() {
                   </div>
                 )}
                 <p className="muted" style={{ marginTop: "0.25rem" }}>
-                  להוספת משתנה: {"{{"}שם_עסק{"}}"} וכדומה (עברית/אנגלית, קו תחתון בלבד).
+                  רק ארבעת המשתנים למעלה עובדים בפועל בשליחה — כל שם אחר בסוגריים כפולים יישלח ריק. עיצוב: *מודגש*, _נטוי_, ~קו חוצה~, ```קוד```.
                 </p>
               </div>
               {extractVariables(editing.body_text).length > 0 && (
