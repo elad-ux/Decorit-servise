@@ -30,6 +30,47 @@ type FormState = {
 
 const EMPTY_FORM: FormState = { business_name: "", contact_name: "", phone: "", city: "", categoryIds: [] };
 
+type SortKey = "business_name" | "contact_name" | "phone" | "city" | "categories" | "active" | "opted_out";
+
+function SortableHeader({
+  label,
+  sortKey: key,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = key === activeKey;
+  return (
+    <th>
+      <button
+        type="button"
+        onClick={() => onSort(key)}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          font: "inherit",
+          fontWeight: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.25rem",
+        }}
+      >
+        {label}
+        <span style={{ opacity: isActive ? 1 : 0.25, fontSize: "0.75em" }}>{isActive && dir === "desc" ? "▲" : "▼"}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function BroadcastContacts() {
   const { session } = useAuth();
   const [contacts, setContacts] = useState<BroadcastContact[]>([]);
@@ -47,8 +88,19 @@ export default function BroadcastContacts() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkAddCategoryId, setBulkAddCategoryId] = useState("");
   const [bulkRemoveCategoryId, setBulkRemoveCategoryId] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("business_name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const sessionToken = session?.sessionToken ?? "";
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -92,6 +144,41 @@ export default function BroadcastContacts() {
     });
   }, [contacts, search, cityFilter, categoryFilter]);
 
+  const sortedFiltered = useMemo(() => {
+    function sortValue(c: BroadcastContact): string | number {
+      switch (sortKey) {
+        case "business_name":
+          return c.business_name || "";
+        case "contact_name":
+          return c.contact_name || "";
+        case "phone":
+          return c.phone || "";
+        case "city":
+          return c.city || "";
+        case "categories":
+          return c.categories.map((cat) => cat.name).sort().join(", ");
+        case "active":
+          return c.active ? 1 : 0;
+        case "opted_out":
+          return c.opted_out ? 1 : 0;
+        default:
+          return "";
+      }
+    }
+    const sorted = [...filtered].sort((a, b) => {
+      const va = sortValue(a);
+      const vb = sortValue(b);
+      let cmp: number;
+      if (typeof va === "number" && typeof vb === "number") {
+        cmp = va - vb;
+      } else {
+        cmp = String(va).localeCompare(String(vb), "he");
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [filtered, sortKey, sortDir]);
+
   const selectedRows = useMemo(() => contacts.filter((c) => selectedIds.has(c.id)), [contacts, selectedIds]);
 
   /** Categories every selected contact has in common — the only ones it makes sense to offer for bulk removal. */
@@ -112,9 +199,9 @@ export default function BroadcastContacts() {
 
   function toggleSelectAllFiltered() {
     setSelectedIds((prev) => {
-      const allSelected = filtered.length > 0 && filtered.every((c) => prev.has(c.id));
+      const allSelected = sortedFiltered.length > 0 && sortedFiltered.every((c) => prev.has(c.id));
       if (allSelected) return new Set();
-      return new Set(filtered.map((c) => c.id));
+      return new Set(sortedFiltered.map((c) => c.id));
     });
   }
 
@@ -305,10 +392,10 @@ export default function BroadcastContacts() {
         <button
           type="button"
           className="btn-link"
-          disabled={filtered.length === 0}
-          onClick={() => downloadContactsCsv(filtered)}
+          disabled={sortedFiltered.length === 0}
+          onClick={() => downloadContactsCsv(sortedFiltered)}
         >
-          ייצוא לקובץ ({filtered.length})
+          ייצוא לקובץ ({sortedFiltered.length})
         </button>
         {!showArchived && (
           <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setEditing(EMPTY_FORM)}>
@@ -381,29 +468,29 @@ export default function BroadcastContacts() {
                 <th>
                   <input
                     type="checkbox"
-                    checked={filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))}
+                    checked={sortedFiltered.length > 0 && sortedFiltered.every((c) => selectedIds.has(c.id))}
                     onChange={toggleSelectAllFiltered}
                     aria-label="בחירת הכל"
                   />
                 </th>
-                <th>עסק</th>
-                <th>איש קשר</th>
-                <th>טלפון</th>
-                <th>עיר</th>
-                <th>קטגוריות</th>
+                <SortableHeader label="עסק" sortKey="business_name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="איש קשר" sortKey="contact_name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="טלפון" sortKey="phone" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="עיר" sortKey="city" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="קטגוריות" sortKey="categories" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 {showArchived ? (
                   <th>סטטוס</th>
                 ) : (
                   <>
-                    <th>פעיל</th>
-                    <th>הסרה</th>
+                    <SortableHeader label="פעיל" sortKey="active" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortableHeader label="הסרה" sortKey="opted_out" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                   </>
                 )}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => (
+              {sortedFiltered.map((c) => (
                 <tr key={c.id}>
                   <td>
                     <input
@@ -493,7 +580,7 @@ export default function BroadcastContacts() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {sortedFiltered.length === 0 && (
                 <tr>
                   <td colSpan={showArchived ? 8 : 9} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     {showArchived ? "הארכיון ריק" : "אין אנשי קשר תואמים"}
