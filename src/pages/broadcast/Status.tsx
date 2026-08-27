@@ -51,6 +51,47 @@ function documentFileName(url: string): string {
   }
 }
 
+type SortKey = "business" | "phone" | "template" | "status" | "sent_at" | "delivered_at" | "read_at" | "reply";
+
+function SortableHeader({
+  label,
+  sortKey: key,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = key === activeKey;
+  return (
+    <th>
+      <button
+        type="button"
+        onClick={() => onSort(key)}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          font: "inherit",
+          fontWeight: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.25rem",
+        }}
+      >
+        {label}
+        <span style={{ opacity: isActive ? 1 : 0.25, fontSize: "0.75em" }}>{isActive && dir === "desc" ? "▲" : "▼"}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function BroadcastStatus() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
@@ -69,6 +110,17 @@ export default function BroadcastStatus() {
   const [replyError, setReplyError] = useState<string | null>(null);
   const batchIdRef = useRef(batchId);
   batchIdRef.current = batchId;
+  const [sortKey, setSortKey] = useState<SortKey>("sent_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "sent_at" || key === "delivered_at" || key === "read_at" ? "desc" : "asc");
+    }
+  }
 
   async function load(selectedBatchId: string, silent = false) {
     if (silent) {
@@ -189,6 +241,40 @@ export default function BroadcastStatus() {
     }
   }
 
+  const sortedSends = [...sends].sort((a, b) => {
+    function val(s: BroadcastSendRow): string | number {
+      switch (sortKey) {
+        case "business":
+          return (s.business_name || "") + (s.contact_name ? ` (${s.contact_name})` : "");
+        case "phone":
+          return s.phone || "";
+        case "template":
+          return s.template_name || "";
+        case "status":
+          return s.status || "";
+        case "sent_at":
+          return s.sent_at ? new Date(s.sent_at).getTime() : 0;
+        case "delivered_at":
+          return s.delivered_at ? new Date(s.delivered_at).getTime() : 0;
+        case "read_at":
+          return s.read_at ? new Date(s.read_at).getTime() : 0;
+        case "reply":
+          return s.reply_text || s.button_clicked || "";
+        default:
+          return "";
+      }
+    }
+    const va = val(a);
+    const vb = val(b);
+    let cmp: number;
+    if (typeof va === "number" && typeof vb === "number") {
+      cmp = va - vb;
+    } else {
+      cmp = String(va).localeCompare(String(vb), "he");
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
   return (
     <div>
       {error && <div className="error-box">{error}</div>}
@@ -253,18 +339,18 @@ export default function BroadcastStatus() {
             <thead>
               <tr>
                 <th></th>
-                <th>עסק</th>
-                <th>טלפון</th>
-                <th>תבנית</th>
-                <th>סטטוס</th>
-                <th>נשלח</th>
-                <th>נמסר</th>
-                <th>נקרא</th>
-                <th>תשובה</th>
+                <SortableHeader label="עסק" sortKey="business" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="טלפון" sortKey="phone" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="תבנית" sortKey="template" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="סטטוס" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="נשלח" sortKey="sent_at" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="נמסר" sortKey="delivered_at" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="נקרא" sortKey="read_at" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortableHeader label="תשובה" sortKey="reply" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
-              {sends.map((s) => {
+              {sortedSends.map((s) => {
                 const unread = hasReply(s) && !s.reply_seen_at;
                 return (
                   <tr key={s.send_id} onClick={() => openPanel(s)} style={{ cursor: "pointer" }} title="לחץ לתצוגת השיחה בוואטסאפ">
