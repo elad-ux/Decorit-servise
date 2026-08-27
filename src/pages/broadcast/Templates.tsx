@@ -6,6 +6,7 @@ import {
   type AiContentSuggestion,
   type BroadcastTemplate,
   type TemplateButton,
+  type TemplateCarouselCard,
   archiveTemplate,
   deleteTemplate,
   forceSyncTemplate,
@@ -19,7 +20,7 @@ import {
 } from "../../lib/broadcast";
 import { META_MEDIA_LIMITS, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES, compressImageIfNeeded } from "../../lib/mediaLimits";
 
-type HeaderType = "none" | "text" | "image" | "video" | "document";
+type HeaderType = "none" | "text" | "image" | "video" | "document" | "carousel";
 
 type FormState = {
   id?: string;
@@ -33,6 +34,7 @@ type FormState = {
   footer_text: string;
   has_optout_line: boolean;
   buttons: TemplateButton[];
+  carousel_cards: TemplateCarouselCard[];
   /** UI-only — not sent to the server, just powers the live preview. */
   variable_examples: Record<string, string>;
 };
@@ -48,8 +50,11 @@ const EMPTY_FORM: FormState = {
   footer_text: "",
   has_optout_line: false,
   buttons: [],
+  carousel_cards: [],
   variable_examples: {},
 };
+
+const EMPTY_CAROUSEL_CARD: TemplateCarouselCard = { header_type: "image", header_sample_media_url: "", body_text: "", buttons: [] };
 
 const STATUS_LABEL: Record<BroadcastTemplate["status"], string> = {
   draft: "טיוטה",
@@ -65,6 +70,7 @@ const HEADER_TYPE_LABEL: Record<HeaderType, string> = {
   image: "תמונה",
   video: "וידאו",
   document: "מסמך",
+  carousel: "קרוסלה (כמה כרטיסים)",
 };
 
 const BUTTON_TYPE_LABEL: Record<TemplateButton["type"], string> = {
@@ -114,8 +120,21 @@ function templateToPreviewForm(t: BroadcastTemplate): FormState {
     footer_text: t.footer_text ?? "",
     has_optout_line: t.has_optout_line,
     buttons: t.buttons ?? [],
+    carousel_cards: t.carousel_cards ?? [],
     variable_examples: {},
   };
+}
+
+function carouselWarning(cards: TemplateCarouselCard[]): string | null {
+  if (cards.length === 0) return null;
+  if (cards.length < 2) return "קרוסלה דורשת לפחות 2 כרטיסים.";
+  if (cards.length > 10) return "קרוסלה תומכת בעד 10 כרטיסים.";
+  if (cards.some((c) => !c.header_sample_media_url)) return "לכל כרטיס חייבת להיות תמונה/וידאו.";
+  const headerTypes = new Set(cards.map((c) => c.header_type));
+  if (headerTypes.size > 1) return "כל הכרטיסים חייבים להיות מאותו סוג מדיה (כולם תמונה או כולם וידאו).";
+  const signatures = new Set(cards.map((c) => c.buttons.map((b) => b.type).join(",")));
+  if (signatures.size > 1) return 'לכל הכרטיסים חייב להיות אותו מספר וסוג כפתורים, באותו סדר (לפי הגבלת Meta).';
+  return null;
 }
 
 /**
@@ -223,6 +242,38 @@ function TemplatePreview({ form }: { form: FormState }) {
           ))}
         </div>
       )}
+      {form.header_type === "carousel" && form.carousel_cards.length > 0 && (
+        <div className="wa-carousel">
+          {form.carousel_cards.map((card, i) => (
+            <div key={i} className="wa-carousel-card">
+              <div className="wa-carousel-card-media">
+                {card.header_sample_media_url ? (
+                  card.header_type === "video" ? (
+                    // eslint-disable-next-line jsx-a11y/media-has-caption
+                    <video src={card.header_sample_media_url} preload="metadata" />
+                  ) : (
+                    <img src={card.header_sample_media_url} alt="" />
+                  )
+                ) : (
+                  <span>{card.header_type === "video" ? "🎬" : "🖼"}</span>
+                )}
+              </div>
+              {card.body_text && <div className="wa-carousel-card-body">{substituteVars(card.body_text, form.variable_examples)}</div>}
+              {card.buttons.length > 0 && (
+                <div className="wa-carousel-card-buttons">
+                  {card.buttons.map((b, bi) => (
+                    <div key={bi} className="wa-carousel-card-button">
+                      {b.type === "url" && "🔗 "}
+                      {b.type === "phone" && "📞 "}
+                      {b.text || "(כיתוב כפתור)"}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -237,6 +288,7 @@ export default function BroadcastTemplates() {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCardIndex, setUploadingCardIndex] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiContentSuggestion | null>(null);
@@ -258,6 +310,7 @@ export default function BroadcastTemplates() {
       footer_text: t.footer_text ?? "",
       has_optout_line: t.has_optout_line,
       buttons: t.buttons ?? [],
+      carousel_cards: t.carousel_cards ?? [],
       variable_examples: {},
     });
   }
@@ -288,9 +341,16 @@ export default function BroadcastTemplates() {
     // this browser tab and must never be persisted. Belt-and-suspenders on
     // top of disabling the Save button while uploading, in case of a
     // race (e.g. Enter-key submit firing between the two state updates).
-    if (editing.header_sample_media_url.startsWith("blob:")) {
+    if (editing.header_sample_media_url.startsWith("blob:") || editing.carousel_cards.some((c) => c.header_sample_media_url.startsWith("blob:"))) {
       setError("הקובץ עדיין מועלה לשרת — יש להמתין לסיום ההעלאה לפני השמירה.");
       return;
+    }
+    if (editing.header_type === "carousel") {
+      const warning = carouselWarning(editing.carousel_cards);
+      if (warning) {
+        setError(warning);
+        return;
+      }
     }
     setSaving(true);
     setError(null);
@@ -307,9 +367,10 @@ export default function BroadcastTemplates() {
             ? editing.header_sample_media_url || undefined
             : undefined,
         body_text: editing.body_text,
-        footer_text: editing.footer_text || undefined,
-        has_optout_line: editing.has_optout_line,
-        buttons: editing.buttons,
+        footer_text: editing.header_type === "carousel" ? undefined : editing.footer_text || undefined,
+        has_optout_line: editing.header_type === "carousel" ? false : editing.has_optout_line,
+        buttons: editing.header_type === "carousel" ? [] : editing.buttons,
+        carousel_cards: editing.header_type === "carousel" ? editing.carousel_cards : undefined,
       });
       setEditing(null);
       await load();
@@ -484,6 +545,81 @@ export default function BroadcastTemplates() {
   function removeButton(i: number) {
     if (!editing) return;
     setEditing({ ...editing, buttons: editing.buttons.filter((_, idx) => idx !== i) });
+  }
+
+  function addCard() {
+    if (!editing) return;
+    if (editing.carousel_cards.length >= 10) return;
+    setEditing({ ...editing, carousel_cards: [...editing.carousel_cards, { ...EMPTY_CAROUSEL_CARD, buttons: [] }] });
+  }
+
+  function updateCard(i: number, patch: Partial<TemplateCarouselCard>) {
+    if (!editing) return;
+    const cards = editing.carousel_cards.map((c, idx) => (idx === i ? { ...c, ...patch } : c));
+    setEditing({ ...editing, carousel_cards: cards });
+  }
+
+  function removeCard(i: number) {
+    if (!editing) return;
+    setEditing({ ...editing, carousel_cards: editing.carousel_cards.filter((_, idx) => idx !== i) });
+  }
+
+  function addCardButton(cardIndex: number) {
+    if (!editing) return;
+    const card = editing.carousel_cards[cardIndex];
+    if (!card || card.buttons.length >= 2) return;
+    updateCard(cardIndex, { buttons: [...card.buttons, { type: "quick_reply", text: "", value: "" }] });
+  }
+
+  function updateCardButton(cardIndex: number, buttonIndex: number, patch: Partial<TemplateButton>) {
+    if (!editing) return;
+    const card = editing.carousel_cards[cardIndex];
+    if (!card) return;
+    const buttons = card.buttons.map((b, idx) => (idx === buttonIndex ? { ...b, ...patch } : b));
+    updateCard(cardIndex, { buttons });
+  }
+
+  function removeCardButton(cardIndex: number, buttonIndex: number) {
+    if (!editing) return;
+    const card = editing.carousel_cards[cardIndex];
+    if (!card) return;
+    updateCard(cardIndex, { buttons: card.buttons.filter((_, idx) => idx !== buttonIndex) });
+  }
+
+  async function handleCardFileChange(cardIndex: number, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editing) return;
+    setError(null);
+
+    const limit = META_MEDIA_LIMITS.image;
+    let toUpload: File = file;
+    const compressionTarget = Math.min(limit.bytes, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES);
+    if (file.size > compressionTarget) {
+      toUpload = await compressImageIfNeeded(file, compressionTarget);
+    }
+    if (toUpload.size > limit.bytes) {
+      setError(`הקובץ גדול מדי (${(toUpload.size / 1024 / 1024).toFixed(1)}MB) — Meta מגבילה תמונה עד ${limit.label}.`);
+      return;
+    }
+
+    const localPreviewUrl = URL.createObjectURL(toUpload);
+    updateCard(cardIndex, { header_sample_media_url: localPreviewUrl });
+
+    setUploadingCardIndex(cardIndex);
+    try {
+      const { url } = await uploadBroadcastMedia(sessionToken, toUpload);
+      updateCard(cardIndex, { header_sample_media_url: url });
+      URL.revokeObjectURL(localPreviewUrl);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "שגיאה בהעלאת הקובץ — התצוגה המקדימה עדיין מציגה את הקובץ שנבחר, אפשר לנסות שוב.",
+      );
+    } finally {
+      setUploadingCardIndex(null);
+    }
   }
 
   return (
@@ -729,6 +865,93 @@ export default function BroadcastTemplates() {
                 </div>
               )}
 
+              {editing.header_type === "carousel" && (
+                <div className="field">
+                  <label>כרטיסי הקרוסלה (2–10)</label>
+                  {editing.carousel_cards.map((card, i) => (
+                    <div key={i} style={{ border: "1px solid var(--linen)", borderRadius: 8, padding: "0.75rem", marginBottom: "0.6rem" }}>
+                      <div className="button-row" style={{ marginBottom: "0.4rem" }}>
+                        <strong>כרטיס {i + 1}</strong>
+                        <button type="button" className="btn-link btn-link-danger" onClick={() => removeCard(i)}>
+                          הסרת כרטיס
+                        </button>
+                      </div>
+
+                      <select
+                        value={card.header_type}
+                        onChange={(e) => updateCard(i, { header_type: e.target.value as TemplateCarouselCard["header_type"] })}
+                        style={{ marginBottom: "0.4rem" }}
+                      >
+                        <option value="image">תמונה</option>
+                        <option value="video">וידאו</option>
+                      </select>
+
+                      <input
+                        type="file"
+                        accept={card.header_type === "image" ? "image/*" : "video/*"}
+                        disabled={uploadingCardIndex === i}
+                        onChange={(e) => void handleCardFileChange(i, e)}
+                        style={{ marginBottom: "0.3rem" }}
+                      />
+                      {uploadingCardIndex === i && <p className="muted">מעלה...</p>}
+                      <input
+                        className="mono"
+                        value={card.header_sample_media_url}
+                        onChange={(e) => updateCard(i, { header_sample_media_url: e.target.value })}
+                        placeholder="או הדביקו כתובת URL ישירות"
+                        style={{ marginBottom: "0.4rem" }}
+                      />
+
+                      <textarea
+                        rows={2}
+                        value={card.body_text ?? ""}
+                        onChange={(e) => updateCard(i, { body_text: e.target.value })}
+                        placeholder="טקסט הכרטיס (אופציונלי — אם כרטיס אחד מקבל טקסט, כולם חייבים)"
+                        style={{ marginBottom: "0.4rem" }}
+                      />
+
+                      {card.buttons.map((b, bi) => (
+                        <div key={bi} className="button-row">
+                          <select value={b.type} onChange={(e) => updateCardButton(i, bi, { type: e.target.value as TemplateButton["type"] })}>
+                            {(Object.keys(BUTTON_TYPE_LABEL) as TemplateButton["type"][]).map((bt) => (
+                              <option key={bt} value={bt}>
+                                {BUTTON_TYPE_LABEL[bt]}
+                              </option>
+                            ))}
+                          </select>
+                          <input placeholder="כיתוב" value={b.text} onChange={(e) => updateCardButton(i, bi, { text: e.target.value })} />
+                          {b.type !== "quick_reply" && (
+                            <input
+                              placeholder={b.type === "url" ? "https://..." : "מספר טלפון"}
+                              value={b.value}
+                              onChange={(e) => updateCardButton(i, bi, { value: e.target.value })}
+                            />
+                          )}
+                          <button type="button" className="btn-link btn-link-danger" onClick={() => removeCardButton(i, bi)}>
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      {card.buttons.length < 2 && (
+                        <button type="button" className="btn-link" onClick={() => addCardButton(i)}>
+                          + הוספת כפתור לכרטיס (עד 2)
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {editing.carousel_cards.length < 10 && (
+                    <button type="button" className="btn-link" onClick={addCard}>
+                      + הוספת כרטיס
+                    </button>
+                  )}
+                  {carouselWarning(editing.carousel_cards) && (
+                    <p className="muted" style={{ color: "var(--danger-500)" }}>
+                      {carouselWarning(editing.carousel_cards)}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="field">
                 <label>גוף ההודעה</label>
                 <textarea
@@ -795,21 +1018,26 @@ export default function BroadcastTemplates() {
                   ))}
                 </div>
               )}
-              <div className="field">
-                <label>שורת תחתית (footer, אופציונלי)</label>
-                <input value={editing.footer_text} onChange={(e) => setEditing({ ...editing, footer_text: e.target.value })} />
-              </div>
-              <div className="field">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={editing.has_optout_line}
-                    onChange={(e) => setEditing({ ...editing, has_optout_line: e.target.checked })}
-                  />
-                  הוספת שורת הסרה מרשימת תפוצה (נדרש לפי מדיניות שיווק ב-WhatsApp)
-                </label>
-              </div>
+              {editing.header_type !== "carousel" && (
+                <>
+                  <div className="field">
+                    <label>שורת תחתית (footer, אופציונלי)</label>
+                    <input value={editing.footer_text} onChange={(e) => setEditing({ ...editing, footer_text: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={editing.has_optout_line}
+                        onChange={(e) => setEditing({ ...editing, has_optout_line: e.target.checked })}
+                      />
+                      הוספת שורת הסרה מרשימת תפוצה (נדרש לפי מדיניות שיווק ב-WhatsApp)
+                    </label>
+                  </div>
+                </>
+              )}
 
+              {editing.header_type !== "carousel" && (
               <div className="field">
                 <label>כפתורים (אופציונלי)</label>
                 {editing.buttons.map((b, i) => (
@@ -843,9 +1071,10 @@ export default function BroadcastTemplates() {
                   </p>
                 )}
               </div>
+              )}
 
-              <button className="btn" type="submit" disabled={saving || uploading}>
-                {saving ? "שומר..." : uploading ? "ממתין לסיום ההעלאה..." : "שמירה"}
+              <button className="btn" type="submit" disabled={saving || uploading || uploadingCardIndex !== null}>
+                {saving ? "שומר..." : uploading || uploadingCardIndex !== null ? "ממתין לסיום ההעלאה..." : "שמירה"}
               </button>
             </form>
 
