@@ -544,7 +544,8 @@ export default function BroadcastContacts() {
                 {categories.length === 0 && <span className="muted">אין קטגוריות עדיין — הוסיפו אחת מהתפריט</span>}
               </div>
             </div>
-            <button className="btn" type="submit" disabled={saving}>
+            <button className="btn btn-with-spinner" type="submit" disabled={saving}>
+              {saving && <span className="spinner" />}
               {saving ? "שומר..." : "שמירה"}
             </button>
           </form>

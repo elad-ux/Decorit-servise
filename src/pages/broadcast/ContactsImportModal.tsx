@@ -116,11 +116,12 @@ export default function ContactsImportModal({
         <div className="field" style={{ marginTop: "1rem" }}>
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm btn-with-spinner"
             style={{ width: "auto" }}
             disabled={busy}
             onClick={() => fileInputRef.current?.click()}
           >
+            {busy && <span className="spinner" />}
             {busy ? "בודק..." : "בחירת קובץ CSV"}
           </button>
           <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => void handleFile(e)} />
@@ -231,11 +232,12 @@ export default function ContactsImportModal({
             </button>
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-sm btn-with-spinner"
               style={{ width: "auto" }}
               disabled={busy || preview.rows.length === 0}
               onClick={() => void handleConfirm()}
             >
+              {busy && <span className="spinner" />}
               {busy ? "מייבא..." : `ייבוא ${preview.rows.length} אנשי קשר`}
             </button>
           </div>
