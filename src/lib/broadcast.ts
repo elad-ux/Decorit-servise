@@ -268,6 +268,11 @@ export function deleteContact(sessionToken: string, id: string): Promise<unknown
   return contacts(sessionToken, "delete", { id });
 }
 
+/** Hard-deletes every listed contact in one call (n8n's bulk_delete action) — same FK-guard friendly error as the single delete if any of them has send history. */
+export function bulkDeleteContacts(sessionToken: string, ids: string[]): Promise<unknown> {
+  return contacts(sessionToken, "bulk_delete", { ids });
+}
+
 export function setContactActive(sessionToken: string, id: string, active: boolean): Promise<unknown> {
   return contacts(sessionToken, "bulk_set_active", { ids: [id], active });
 }
