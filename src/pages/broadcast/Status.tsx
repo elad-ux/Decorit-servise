@@ -13,6 +13,7 @@ import {
   listConversation,
   sendReply,
 } from "../../lib/broadcast";
+import { parseWaError } from "../../lib/waErrors";
 
 const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
   queued: "בתור",
@@ -29,12 +30,6 @@ const STATUS_LABEL: Record<BroadcastSendRow["status"], string> = {
 // completely independent of this page. Polling is what makes that already-
 // live backend state actually show up here without a manual reload.
 const POLL_INTERVAL_MS = 10000;
-
-const ERROR_PREVIEW_MAX = 40;
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? text.slice(0, max).trim() + "…" : text;
-}
 
 const REPLY_TAG_OPTIONS = ["חשוב", "המשך טיפול"];
 
@@ -370,8 +365,8 @@ export default function BroadcastStatus() {
                     <td>
                       <span className={`pill pill-status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
                       {s.error && (
-                        <div className="muted" style={{ fontSize: ".75rem" }}>
-                          {truncate(s.error, ERROR_PREVIEW_MAX)}
+                        <div className="muted" style={{ fontSize: ".75rem" }} title={parseWaError(s.error).explanation}>
+                          {parseWaError(s.error).title}
                         </div>
                       )}
                     </td>
@@ -445,12 +440,25 @@ export default function BroadcastStatus() {
                   לא יישלחו אליו הודעות תפוצה נוספות עד שמנהל יפעיל אותו מחדש בעמוד "אנשי קשר".
                 </div>
               )}
-              {panelSend.error && (
-                <div className="error-box" style={{ marginBottom: "0.75rem" }}>
-                  <strong>שגיאה מלאה:</strong>
-                  <div style={{ marginTop: "0.25rem", whiteSpace: "pre-wrap" }}>{panelSend.error}</div>
-                </div>
-              )}
+              {panelSend.error &&
+                (() => {
+                  const info = parseWaError(panelSend.error);
+                  return (
+                    <div className="error-box" style={{ marginBottom: "0.75rem" }}>
+                      <strong>{info.title}</strong>
+                      <p style={{ margin: "0.4rem 0" }}>{info.explanation}</p>
+                      {info.recommendation && <p style={{ margin: "0.4rem 0", fontWeight: 600 }}>💡 {info.recommendation}</p>}
+                      <details style={{ marginTop: "0.5rem" }}>
+                        <summary className="muted" style={{ cursor: "pointer", fontSize: ".75rem" }}>
+                          פרטים טכניים מלאים
+                        </summary>
+                        <div className="mono muted" style={{ marginTop: "0.25rem", whiteSpace: "pre-wrap", fontSize: ".75rem" }}>
+                          {info.raw}
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })()}
 
               {hasReply(panelSend) && (
                 <div className="field" style={{ marginBottom: "1rem" }}>
