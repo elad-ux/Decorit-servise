@@ -26,7 +26,7 @@ function roleLabel(role: string): string {
 }
 
 const MODULES: ModuleCard[] = [
-  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", requiredFeatureKeys: ["containers"], available: false },
+  { title: "מכולות", description: "מעקב, פרטי מכולה ועדכון סטטוס", requiredFeatureKeys: ["containers"], to: "/containers", available: true },
   { title: "מוצרים", description: "תיק מוצרים ורגולציה", requiredFeatureKeys: ["products"], available: false },
   { title: "משתמשים", description: "ניהול צוות המערכת", requiredFeatureKeys: ["users"], to: "/users", available: true },
   {

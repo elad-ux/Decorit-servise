@@ -721,6 +721,22 @@ tbody tr:hover {
   color: #6b6459;
 }
 
+/* Container-tracking statuses not already covered by the shared names above
+   (pending/delivered are reused as-is). */
+.pill-status-at_sea,
+.pill-status-port_arrival,
+.pill-status-customs {
+  background: var(--clay-50);
+  color: var(--clay-600);
+}
+
+.pill-status-ready,
+.pill-status-warehouse_arrived,
+.pill-status-warehouse_cleared {
+  background: #e3ede3;
+  color: var(--success-500);
+}
+
 /* ---- Chips (multi-select categories) ---- */
 .chip-row {
   display: flex;

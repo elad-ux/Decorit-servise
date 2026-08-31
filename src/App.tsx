@@ -10,6 +10,8 @@ import BroadcastStatus from "./pages/broadcast/Status";
 import Users from "./pages/Users";
 import Permissions from "./pages/Permissions";
 import ActivityLog from "./pages/ActivityLog";
+import Containers from "./pages/Containers";
+import ContainerDetail from "./pages/ContainerDetail";
 
 export default function App() {
   return (
@@ -21,6 +23,22 @@ export default function App() {
           element={
             <RequireAuth>
               <Hub />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/containers"
+          element={
+            <RequireAuth>
+              <Containers />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/containers/:id"
+          element={
+            <RequireAuth>
+              <ContainerDetail />
             </RequireAuth>
           }
         />
