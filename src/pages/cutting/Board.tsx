@@ -233,7 +233,7 @@ export default function CuttingBoard() {
                 <th>כמות</th>
                 <th>סטטוס</th>
                 <th>הערות</th>
-                <th>נוצר</th>
+                <th>נוצר / עודכן</th>
                 <th></th>
               </tr>
             </thead>
@@ -264,7 +264,20 @@ export default function CuttingBoard() {
                     )}
                   </td>
                   <td className="muted">{t.office_notes || "—"}</td>
-                  <td>{new Date(t.created_at).toLocaleString("he-IL")}</td>
+                  <td>
+                    <div>{new Date(t.created_at).toLocaleString("he-IL")}</div>
+                    {t.created_by_name && <div className="muted" style={{ fontSize: "0.75rem" }}>ע"י {t.created_by_name}</div>}
+                    {t.updated_by && (
+                      <div style={{ marginTop: "0.25rem" }}>
+                        <span
+                          className="chip chip-static chip-sm"
+                          title={`נערך על ידי ${t.updated_by_name || t.updated_by} · ${new Date(t.updated_at).toLocaleString("he-IL")}`}
+                        >
+                          נערך
+                        </span>
+                      </div>
+                    )}
+                  </td>
                   <td>
                     {canEdit && t.status === "pending" && (
                       <>
