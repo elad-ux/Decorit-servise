@@ -10,6 +10,10 @@ import BroadcastStatus from "./pages/broadcast/Status";
 import Users from "./pages/Users";
 import Permissions from "./pages/Permissions";
 import ActivityLog from "./pages/ActivityLog";
+import CuttingLayout from "./components/CuttingLayout";
+import CuttingBoard from "./pages/cutting/Board";
+import CuttingStation from "./pages/cutting/Station";
+import CuttingSettings from "./pages/cutting/Settings";
 
 export default function App() {
   return (
@@ -61,6 +65,18 @@ export default function App() {
           <Route path="templates" element={<BroadcastTemplates />} />
           <Route path="send" element={<BroadcastSend />} />
           <Route path="status" element={<BroadcastStatus />} />
+        </Route>
+        <Route
+          path="/cutting"
+          element={
+            <RequireAuth>
+              <CuttingLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<CuttingBoard />} />
+          <Route path="station" element={<CuttingStation />} />
+          <Route path="settings" element={<CuttingSettings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

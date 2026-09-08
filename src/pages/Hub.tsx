@@ -36,6 +36,21 @@ const MODULES: ModuleCard[] = [
     to: "/broadcast",
     available: true,
   },
+  {
+    title: "חיתוך בד",
+    description: "משימות גזירה, קטלוג בדים ומלאי",
+    requiredFeatureKeys: [
+      "cutting.tasks.view",
+      "cutting.tasks.create",
+      "cutting.tasks.edit",
+      "cutting.tasks.report",
+      "cutting.catalog.manage",
+      "cutting.stock.update",
+      "cutting.settings.manage",
+    ],
+    to: "/cutting",
+    available: true,
+  },
 ];
 
 const ADMIN_MODULES: ModuleCard[] = [
@@ -69,11 +84,16 @@ export default function Hub() {
   const isAdmin = session.role === "admin";
   const modules = isAdmin ? MODULES.concat(ADMIN_MODULES) : MODULES;
   const visibleModules =
-    isAdmin || featureKeys
+    (isAdmin || featureKeys
       ? modules.filter(
           (m) => isAdmin || !m.requiredFeatureKeys || m.requiredFeatureKeys.some((k) => featureKeys!.has(k)),
         )
-      : [];
+      : []
+    ).map((m) =>
+      // Cutters have no use for the office task board — send them straight
+      // to their queue instead of the empty-for-them "לוח בקרה" tab.
+      m.title === "חיתוך בד" && session.role === "cutter" ? { ...m, to: "/cutting/station" } : m,
+    );
 
   return (
     <>
