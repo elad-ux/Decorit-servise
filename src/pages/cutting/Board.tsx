@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
@@ -46,7 +47,7 @@ const EMPTY_FORM: FormState = {
 export default function CuttingBoard() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
-  const { canCreate, canEdit } = useCuttingPermissions();
+  const { canCreate, canEdit, isAdmin, loaded: permissionsLoaded } = useCuttingPermissions();
 
   const [tasks, setTasks] = useState<CuttingTask[]>([]);
   const [fabrics, setFabrics] = useState<CuttingFabric[]>([]);
@@ -184,6 +185,14 @@ export default function CuttingBoard() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  // A cutter has no create/edit rights here — nothing on this page applies
+  // to them, so send them to the queue they actually work from. Wait for
+  // the permission fetch to resolve first, or everyone gets bounced during
+  // the loading flash (permissions start empty until it completes).
+  if (permissionsLoaded && !canCreate && !canEdit && !isAdmin) {
+    return <Navigate to="/cutting/station" replace />;
   }
 
   return (
