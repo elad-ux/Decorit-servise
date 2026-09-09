@@ -14,10 +14,17 @@ import {
   listSendTemplates,
   uploadBroadcastMedia,
 } from "../../lib/broadcast";
+import { META_MEDIA_LIMITS, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES, compressImageIfNeeded } from "../../lib/mediaLimits";
 
 const CANCELLABLE_BATCH_STATUSES = new Set(["sending", "scheduled"]);
 
 const MEDIA_HEADER_TYPES = ["image", "video", "document"] as const;
+
+const MEDIA_TYPE_LABEL: Record<(typeof MEDIA_HEADER_TYPES)[number], string> = {
+  image: "תמונה",
+  video: "וידאו",
+  document: "מסמך",
+};
 
 const BATCH_STATUS_LABEL: Record<string, string> = {
   scheduled: "מתוזמן",
@@ -95,10 +102,34 @@ export default function BroadcastSend() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setUploading(true);
     setError(null);
+
+    const mediaType = selectedTemplate?.header_type;
+    if (mediaType !== "image" && mediaType !== "video" && mediaType !== "document") return;
+    const limit = META_MEDIA_LIMITS[mediaType];
+
+    let toUpload: File = file;
+    if (mediaType === "image") {
+      // Uploads go through our own n8n webhook as base64 JSON first, which
+      // inflates size ~33% on top of a typical 1MB proxy body cap — a raw
+      // photo well under Meta's own 5MB limit can still be big enough to
+      // get silently rejected before it ever reaches our workflow.
+      const compressionTarget = Math.min(limit.bytes, UPLOAD_TRANSPORT_SAFE_IMAGE_BYTES);
+      if (file.size > compressionTarget) {
+        toUpload = await compressImageIfNeeded(file, compressionTarget);
+      }
+    }
+
+    if (toUpload.size > limit.bytes) {
+      setError(
+        `הקובץ גדול מדי (${(toUpload.size / 1024 / 1024).toFixed(1)}MB) — Meta מגבילה ${MEDIA_TYPE_LABEL[mediaType]} עד ${limit.label}.`,
+      );
+      return;
+    }
+
+    setUploading(true);
     try {
-      const { url } = await uploadBroadcastMedia(sessionToken, file);
+      const { url } = await uploadBroadcastMedia(sessionToken, toUpload);
       setCampaignMediaUrl(url);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בהעלאת הקובץ");
