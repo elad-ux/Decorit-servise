@@ -3,6 +3,7 @@ import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
+import FabricImportModal from "./FabricImportModal";
 import {
   type CuttingFabric,
   type CuttingFabricColor,
@@ -34,6 +35,7 @@ export default function CuttingSettings() {
   const [editingColor, setEditingColor] = useState<ColorForm | null>(null);
   const [savingModal, setSavingModal] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const [archiveDays, setArchiveDays] = useState("");
   const [savingArchive, setSavingArchive] = useState(false);
@@ -167,6 +169,11 @@ export default function CuttingSettings() {
             onClick={() => setEditingFabric({ name: "", active: true })}
           >
             + בד חדש
+          </button>
+        )}
+        {canManageCatalog && (
+          <button type="button" className="btn-link" onClick={() => setImporting(true)}>
+            ייבוא מקובץ
           </button>
         )}
       </div>
@@ -311,6 +318,15 @@ export default function CuttingSettings() {
             </button>
           </form>
         </Modal>
+      )}
+
+      {importing && (
+        <FabricImportModal
+          sessionToken={sessionToken}
+          existingFabrics={fabrics}
+          onClose={() => setImporting(false)}
+          onImported={() => void loadFabrics()}
+        />
       )}
     </>
   );
