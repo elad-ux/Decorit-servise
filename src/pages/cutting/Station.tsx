@@ -175,7 +175,7 @@ export default function CuttingStation() {
           </thead>
           <tbody>
             {filteredPending.map((t) => (
-              <tr key={t.id}>
+              <tr key={t.id} className={t.is_urgent ? "row-urgent" : undefined}>
                 <td>
                   {t.is_urgent && <span className="pill pill-danger">דחוף</span>} {t.customer_name}
                 </td>

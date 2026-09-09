@@ -624,6 +624,15 @@ tbody tr:hover {
   background: var(--clay-50);
 }
 
+tbody tr.row-urgent {
+  background: var(--danger-50);
+  border-inline-start: 3px solid var(--danger-500);
+}
+
+tbody tr.row-urgent:hover {
+  background: #f2dad6;
+}
+
 /* ---- Permissions rules table ---- */
 .permissions-table th,
 .permissions-table td {

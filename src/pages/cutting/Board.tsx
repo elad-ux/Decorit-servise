@@ -239,7 +239,7 @@ export default function CuttingBoard() {
             </thead>
             <tbody>
               {tasks.map((t) => (
-                <tr key={t.id}>
+                <tr key={t.id} className={t.is_urgent ? "row-urgent" : undefined}>
                   <td>
                     {t.customer_name}
                     {t.customer_order_number ? <div className="muted mono">{t.customer_order_number}</div> : null}
