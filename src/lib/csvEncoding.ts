@@ -26,12 +26,16 @@ export function decodeCp862(bytes: Uint8Array): string {
 
 const CANDIDATE_LABELS = ["utf-8", "windows-1255", "iso-8859-8"] as const;
 
+/** Default hints match the contacts importer's columns; pass headerHints for other CSV shapes (e.g. the fabric importer's "בד"/"צבע"). */
 const HEADER_HINTS = ["שם", "עסק", "טלפון", "עיר", "קטגור", "איש קשר"];
 
-function scoreDecoded(text: string): number {
+function scoreDecoded(text: string, headerHints: string[]): number {
   const firstLine = text.split(/\r?\n/, 1)[0] || "";
   const replacementCount = (text.match(/�/g) || []).length;
-  const hintMatches = HEADER_HINTS.filter((w) => firstLine.includes(w)).length;
+  const hintMatches = headerHints.filter((w) => firstLine.includes(w)).length;
+  // No hint word matched (a header vocabulary this caller didn't anticipate) but the
+  // decode is otherwise clean — that's still a confident decode, not a shrug.
+  if (hintMatches === 0 && replacementCount === 0) return 1;
   return hintMatches * 100 - replacementCount;
 }
 
@@ -49,7 +53,7 @@ const ENCODING_LABELS: Record<string, string> = {
   cp862: "CP862 (עברית DOS ישנה)",
 };
 
-export function decodeCsvBytes(buffer: ArrayBuffer): CsvDecodeResult {
+export function decodeCsvBytes(buffer: ArrayBuffer, headerHints: string[] = HEADER_HINTS): CsvDecodeResult {
   const bytes = new Uint8Array(buffer);
   const candidates: { encoding: string; text: string }[] = [];
 
@@ -66,7 +70,7 @@ export function decodeCsvBytes(buffer: ArrayBuffer): CsvDecodeResult {
   let best = candidates[0];
   let bestScore = -Infinity;
   for (const c of candidates) {
-    const s = scoreDecoded(c.text);
+    const s = scoreDecoded(c.text, headerHints);
     if (s > bestScore) {
       bestScore = s;
       best = c;

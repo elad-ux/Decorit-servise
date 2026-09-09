@@ -43,10 +43,15 @@ export interface CuttingTask {
   completed_at: string | null;
   archived_at: string | null;
   updated_at: string;
-  /** Present on `list` results (embedded joins), absent on `create`/`update`/`report_complete`/`reopen`. */
+  /** Set only by the `update` action — null on a freshly created, never-edited task. */
+  updated_by: string | null;
+  /** Present on `list` results (embedded joins/lookups), absent on `create`/`update`/`report_complete`/`reopen`. */
   fabric_name?: string;
   color_name?: string;
   color_in_stock?: boolean;
+  created_by_name?: string | null;
+  updated_by_name?: string | null;
+  completed_by_name?: string | null;
 }
 
 export interface CuttingSetting {

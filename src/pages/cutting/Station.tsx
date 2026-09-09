@@ -1,9 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
 import { type CuttingTask, listTasks, reopenTask, reportComplete } from "../../lib/cutting";
+
+/** Matches the free-text search box against every column shown in either table. */
+function matchesSearch(t: CuttingTask, query: string): boolean {
+  if (!query) return true;
+  const haystack = [
+    t.customer_name,
+    t.customer_order_number,
+    t.fabric_name,
+    t.color_name,
+    t.office_notes,
+    t.cutter_notes,
+    t.packaging_type,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
 
 type ReportFormState = { id: string; quantity_completed: string; packaging_type: string; cutter_notes: string };
 
@@ -20,6 +38,33 @@ export default function CuttingStation() {
   const [reporting, setReporting] = useState<ReportFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [fabricFilter, setFabricFilter] = useState("all");
+  const [urgentOnly, setUrgentOnly] = useState(false);
+  const [limitedOnly, setLimitedOnly] = useState(false);
+
+  const fabricOptions = useMemo(
+    () => Array.from(new Set(pending.map((t) => t.fabric_name).filter((n): n is string => !!n))).sort(),
+    [pending],
+  );
+
+  const filteredPending = useMemo(
+    () =>
+      pending.filter(
+        (t) =>
+          matchesSearch(t, search) &&
+          (fabricFilter === "all" || t.fabric_name === fabricFilter) &&
+          (!urgentOnly || t.is_urgent) &&
+          (!limitedOnly || t.is_limited),
+      ),
+    [pending, search, fabricFilter, urgentOnly, limitedOnly],
+  );
+
+  const filteredCompleted = useMemo(
+    () => recentlyCompleted.filter((t) => matchesSearch(t, search)),
+    [recentlyCompleted, search],
+  );
 
   async function load() {
     setLoading(true);
@@ -94,8 +139,28 @@ export default function CuttingStation() {
     <>
       {error && <div className="error-box">{error}</div>}
 
+      <div className="field" style={{ maxWidth: 320 }}>
+        <input placeholder="חיפוש (לקוח, בד, צבע, הערות...)" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+      <div className="chip-row" style={{ margin: "0.5rem 0 1rem" }}>
+        <button type="button" className={`chip${fabricFilter === "all" ? " chip-selected" : ""}`} onClick={() => setFabricFilter("all")}>
+          כל הבדים
+        </button>
+        {fabricOptions.map((f) => (
+          <button key={f} type="button" className={`chip${fabricFilter === f ? " chip-selected" : ""}`} onClick={() => setFabricFilter(f)}>
+            {f}
+          </button>
+        ))}
+        <button type="button" className={`chip${urgentOnly ? " chip-selected" : ""}`} onClick={() => setUrgentOnly((v) => !v)}>
+          דחוף בלבד
+        </button>
+        <button type="button" className={`chip${limitedOnly ? " chip-selected" : ""}`} onClick={() => setLimitedOnly((v) => !v)}>
+          אין במלאי בלבד
+        </button>
+      </div>
+
       <h2 className="page-subtitle" style={{ marginTop: 0 }}>
-        ממתינות לגזירה ({pending.length})
+        ממתינות לגזירה ({filteredPending.length})
       </h2>
       <div className="table-wrap">
         <table>
@@ -109,7 +174,7 @@ export default function CuttingStation() {
             </tr>
           </thead>
           <tbody>
-            {pending.map((t) => (
+            {filteredPending.map((t) => (
               <tr key={t.id}>
                 <td>
                   {t.is_urgent && <span className="pill pill-danger">דחוף</span>} {t.customer_name}
@@ -133,10 +198,10 @@ export default function CuttingStation() {
                 </td>
               </tr>
             ))}
-            {pending.length === 0 && (
+            {filteredPending.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                  אין משימות ממתינות 🎉
+                  {pending.length === 0 ? "אין משימות ממתינות 🎉" : "אין משימות התואמות את החיפוש"}
                 </td>
               </tr>
             )}
@@ -158,7 +223,7 @@ export default function CuttingStation() {
             </tr>
           </thead>
           <tbody>
-            {recentlyCompleted.map((t) => (
+            {filteredCompleted.map((t) => (
               <tr key={t.id}>
                 <td>{t.customer_name}</td>
                 <td>
@@ -176,10 +241,10 @@ export default function CuttingStation() {
                 </td>
               </tr>
             ))}
-            {recentlyCompleted.length === 0 && (
+            {filteredCompleted.length === 0 && (
               <tr>
                 <td colSpan={6} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                  אין משימות שהושלמו עדיין
+                  {recentlyCompleted.length === 0 ? "אין משימות שהושלמו עדיין" : "אין משימות התואמות את החיפוש"}
                 </td>
               </tr>
             )}
