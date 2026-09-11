@@ -896,6 +896,7 @@ tbody tr.row-urgent:hover {
 
 .button-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
   margin-bottom: 0.4rem;
@@ -907,7 +908,8 @@ tbody tr.row-urgent:hover {
 }
 
 .button-row input {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .wa-preview {
