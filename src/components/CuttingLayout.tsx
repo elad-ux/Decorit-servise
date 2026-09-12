@@ -12,6 +12,8 @@ export interface CuttingPermissions {
   canManageCatalog: boolean;
   canManageStock: boolean;
   canManageSettings: boolean;
+  /** False until the initial permission fetch resolves — pages that redirect based on missing permissions must wait for this, or they'll bounce everyone during the loading flash. */
+  loaded: boolean;
 }
 
 const EMPTY_PERMISSIONS: CuttingPermissions = {
@@ -22,17 +24,12 @@ const EMPTY_PERMISSIONS: CuttingPermissions = {
   canManageCatalog: false,
   canManageStock: false,
   canManageSettings: false,
+  loaded: false,
 };
 
 export function useCuttingPermissions(): CuttingPermissions {
   return useOutletContext<CuttingPermissions>();
 }
-
-const TABS = [
-  { to: "/cutting", label: "לוח בקרה", end: true },
-  { to: "/cutting/station", label: "עמדת גזירה" },
-  { to: "/cutting/settings", label: "הגדרות" },
-];
 
 export default function CuttingLayout() {
   const { session, logout } = useAuth();
@@ -49,6 +46,7 @@ export default function CuttingLayout() {
         canManageCatalog: true,
         canManageStock: true,
         canManageSettings: true,
+        loaded: true,
       });
       return;
     }
@@ -65,10 +63,11 @@ export default function CuttingLayout() {
           canManageCatalog: has("cutting.catalog.manage"),
           canManageStock: has("cutting.stock.update"),
           canManageSettings: has("cutting.settings.manage"),
+          loaded: true,
         });
       })
       .catch(() => {
-        if (!cancelled) setPermissions(EMPTY_PERMISSIONS);
+        if (!cancelled) setPermissions({ ...EMPTY_PERMISSIONS, loaded: true });
       });
     return () => {
       cancelled = true;
@@ -77,6 +76,16 @@ export default function CuttingLayout() {
   }, [session?.sessionToken]);
 
   if (!session) return null;
+
+  const tabs = [
+    // Cutters only ever act on their own queue — the office task board has
+    // nothing for them to do (no create/edit rights) and just confuses them.
+    ...(permissions.canCreate || permissions.canEdit || permissions.isAdmin
+      ? [{ to: "/cutting", label: "לוח בקרה", end: true }]
+      : []),
+    { to: "/cutting/station", label: "עמדת גזירה" },
+    { to: "/cutting/settings", label: "הגדרות" },
+  ];
 
   return (
     <>
@@ -94,7 +103,7 @@ export default function CuttingLayout() {
           </NavLink>
         </div>
         <nav className="tabs">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => `tab${isActive ? " active" : ""}`}>
               {t.label}
             </NavLink>

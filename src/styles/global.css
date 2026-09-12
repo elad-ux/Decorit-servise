@@ -624,6 +624,15 @@ tbody tr:hover {
   background: var(--clay-50);
 }
 
+tbody tr.row-urgent {
+  background: var(--danger-50);
+  border-inline-start: 3px solid var(--danger-500);
+}
+
+tbody tr.row-urgent:hover {
+  background: #f2dad6;
+}
+
 /* ---- Permissions rules table ---- */
 .permissions-table th,
 .permissions-table td {
@@ -887,6 +896,7 @@ tbody tr:hover {
 
 .button-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
   margin-bottom: 0.4rem;
@@ -898,7 +908,8 @@ tbody tr:hover {
 }
 
 .button-row input {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .wa-preview {
