@@ -312,6 +312,30 @@ export async function uploadContainerDocument(
   });
 }
 
+export interface SmartUploadBlResult {
+  success: true;
+  container: { id: string; container_number: string };
+}
+
+/** Largest PDF we'll send. The file travels as base64 (~4/3 of its size) inside one JSON request. */
+export const SMART_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Manager/admin only. Sends a Bill of Lading PDF to the server, which reads it
+ * with GPT-4o, then either creates the container it names or — if that
+ * container number already exists — updates its fields from the document.
+ * Either way the PDF is stored and attached as a `bl` document. Resolves with
+ * the container's id + number so the caller can navigate to it.
+ */
+export async function smartUploadBl(sessionToken: string, file: File): Promise<SmartUploadBlResult> {
+  const file_base64 = await fileToBase64(file);
+  return postJson<SmartUploadBlResult>(ENDPOINTS.parseBl, {
+    session_token: sessionToken,
+    file_name: file.name,
+    file_base64,
+  });
+}
+
 /** Returns a signed, directly-fetchable URL valid for 5 minutes. */
 export async function getContainerDocumentUrl(sessionToken: string, filePath: string): Promise<string> {
   const res = await postJson<{ url: string }>(ENDPOINTS.containerDocumentUrl, {
