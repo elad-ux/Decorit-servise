@@ -10,7 +10,9 @@ import {
   type ContainerListRow,
   type ContainerStatus,
   type UpsertContainerInput,
+  SMART_UPLOAD_MAX_BYTES,
   listContainers,
+  smartUploadBl,
   upsertContainer,
 } from "../lib/containers";
 
@@ -72,6 +74,10 @@ export default function Containers() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [creating, setCreating] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -174,6 +180,41 @@ export default function Containers() {
     }
   }
 
+  function closeUpload() {
+    if (uploading) return;
+    setUploadOpen(false);
+    setUploadFile(null);
+    setUploadError(null);
+  }
+
+  function handlePickFile(file: File | null) {
+    setUploadError(null);
+    if (file && file.size > SMART_UPLOAD_MAX_BYTES) {
+      setUploadFile(null);
+      setUploadError(`הקובץ גדול מדי (${(file.size / 1024 / 1024).toFixed(1)}MB). המקסימום הוא ${SMART_UPLOAD_MAX_BYTES / 1024 / 1024}MB.`);
+      return;
+    }
+    setUploadFile(file);
+  }
+
+  async function handleUploadBl(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const res = await smartUploadBl(sessionToken, uploadFile);
+      setUploadOpen(false);
+      setUploadFile(null);
+      await load();
+      navigate(`/containers/${res.container.id}`);
+    } catch (err) {
+      setUploadError(err instanceof ApiError ? err.message : "שגיאה בהעלאת המסמך");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <>
       <TopBar>
@@ -186,9 +227,14 @@ export default function Containers() {
         <div className="broadcast-header">
           <h1 className="page-title">מכולות</h1>
           {canCreate && (
-            <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setCreating(EMPTY_FORM)}>
-              + מכולה חדשה
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setUploadOpen(true)}>
+                📄 העלאת B/L
+              </button>
+              <button type="button" className="btn btn-sm" style={{ width: "auto" }} onClick={() => setCreating(EMPTY_FORM)}>
+                + מכולה חדשה
+              </button>
+            </div>
           )}
         </div>
         <p className="page-subtitle">מעקב, פרטי מכולה ועדכון סטטוס</p>
@@ -265,6 +311,30 @@ export default function Containers() {
           </div>
         )}
       </div>
+
+      {uploadOpen && (
+        <Modal title="מכולה חדשה מקובץ B/L" onClose={closeUpload}>
+          <form onSubmit={handleUploadBl}>
+            <p className="muted">
+              בחר קובץ PDF של שטר מטען. המערכת תזהה את מספר המכולה ותמלא את הפרטים. אם המכולה כבר קיימת, הפרטים שלה יתעדכנו מהמסמך.
+            </p>
+            <div className="field">
+              <label>קובץ B/L (PDF)</label>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                disabled={uploading}
+                onChange={(e) => handlePickFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            {uploadError && <div className="error-box">{uploadError}</div>}
+            {uploading && <p className="muted">מפענח את המסמך... זה יכול לקחת עד חצי דקה.</p>}
+            <button className="btn" type="submit" disabled={uploading || !uploadFile}>
+              {uploading ? "מעלה ומפענח..." : "העלאה ויצירת מכולה"}
+            </button>
+          </form>
+        </Modal>
+      )}
 
       {creating && (
         <Modal title="מכולה חדשה" onClose={() => setCreating(null)}>

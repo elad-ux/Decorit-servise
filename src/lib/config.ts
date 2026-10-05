@@ -25,6 +25,7 @@ export const ENDPOINTS = {
   upsertContainer: `${API_ROOT}/dashboard/upsert-container`,
   deleteContainer: `${API_ROOT}/dashboard/delete-container`,
   uploadContainerDocument: `${API_ROOT}/dashboard/upload-document`,
+  parseBl: `${API_ROOT}/dashboard/parse-bl`,
   containerDocumentUrl: `${API_ROOT}/dashboard/document-url`,
   broadcastContacts: `${API_ROOT}/dashboard/broadcast-contacts`,
   broadcastTemplates: `${API_ROOT}/dashboard/broadcast-templates`,
