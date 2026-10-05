@@ -132,7 +132,7 @@ export default function Containers() {
 
   const sorted = useMemo(() => {
     function supplierOf(c: ContainerListRow): string {
-      return c.container_suppliers[0]?.supplier_name ?? "";
+      return c.container_suppliers?.[0]?.supplier_name ?? "";
     }
     function routeOf(c: ContainerListRow): string {
       return `${c.origin_port ?? ""} ${c.dest_port ?? ""}`.trim();
@@ -289,7 +289,7 @@ export default function Containers() {
                   <tr key={c.id} onClick={() => navigate(`/containers/${c.id}`)} style={{ cursor: "pointer" }}>
                     <td className="mono">{c.container_number}</td>
                     <td>{c.customer_name || "—"}</td>
-                    <td>{c.container_suppliers[0]?.supplier_name || "—"}</td>
+                    <td>{c.container_suppliers?.[0]?.supplier_name || "—"}</td>
                     <td>
                       {c.origin_port || "—"} → {c.dest_port || "—"}
                     </td>

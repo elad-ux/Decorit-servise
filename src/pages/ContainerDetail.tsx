@@ -450,7 +450,7 @@ export default function ContainerDetail() {
               </div>
             )}
 
-            {container.container_suppliers.length > 0 && (
+            {container.container_suppliers && container.container_suppliers.length > 0 && (
               <div style={{ marginBottom: "1.25rem" }}>
                 <label style={{ fontWeight: 600, display: "block", marginBottom: "0.4rem" }}>ספקים</label>
                 <div className="table-wrap">
