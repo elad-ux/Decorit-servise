@@ -16,7 +16,40 @@ import {
   upsertContainer,
 } from "../lib/containers";
 
-type SortKey = "container_number" | "customer_name" | "supplier" | "route" | "status" | "eta";
+type SortKey = "container_number" | "supplier" | "size" | "free_days" | "status" | "eta";
+
+/**
+ * All suppliers on a container: every container_suppliers row, plus the B/L's
+ * shipper_name as a fallback/addition (the B/L smart-upload only fills
+ * shipper_name, not container_suppliers). De-duplicated ignoring case,
+ * spacing and punctuation so the same company spelled two ways shows once.
+ */
+function suppliersOf(c: ContainerListRow): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const candidates = [...(c.container_suppliers ?? []).map((s) => s.supplier_name), c.shipper_name];
+  for (const raw of candidates) {
+    const name = (raw ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/** Smallest known free-days value (port or carrier); used only for sorting. Unknown sorts last when ascending. */
+function freeDaysSortValue(c: ContainerListRow): number {
+  const known = [c.port_free_days, c.carrier_free_days].filter((n): n is number => typeof n === "number");
+  return known.length ? Math.min(...known) : Number.MAX_SAFE_INTEGER;
+}
+
+/** Leading number of the size/type code ("40HC" → 40, "20GP" → 20) so the column sorts 20s before 40s. */
+function sizeSortValue(c: ContainerListRow): number {
+  const m = /^\s*(\d+)/.exec(c.container_size ?? "");
+  return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+}
 
 function SortableHeader({
   label,
@@ -109,7 +142,7 @@ export default function Containers() {
     const q = search.trim().toLowerCase();
     if (!q) return containers;
     return containers.filter((c) => {
-      const haystack = [c.container_number, c.customer_name, c.carrier, c.vessel_name, c.origin_port, c.dest_port]
+      const haystack = [c.container_number, ...suppliersOf(c), c.container_size, c.carrier, c.vessel_name, c.origin_port, c.dest_port]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -131,22 +164,16 @@ export default function Containers() {
   }, [containers]);
 
   const sorted = useMemo(() => {
-    function supplierOf(c: ContainerListRow): string {
-      return c.container_suppliers?.[0]?.supplier_name ?? "";
-    }
-    function routeOf(c: ContainerListRow): string {
-      return `${c.origin_port ?? ""} ${c.dest_port ?? ""}`.trim();
-    }
     function val(c: ContainerListRow): string | number {
       switch (sortKey) {
         case "container_number":
           return c.container_number;
-        case "customer_name":
-          return c.customer_name ?? "";
         case "supplier":
-          return supplierOf(c);
-        case "route":
-          return routeOf(c);
+          return suppliersOf(c).join(", ");
+        case "size":
+          return sizeSortValue(c);
+        case "free_days":
+          return freeDaysSortValue(c);
         case "status":
           return c.status;
         case "eta":
@@ -263,7 +290,7 @@ export default function Containers() {
         <div className="toolbar">
           <input
             className="input-inline"
-            placeholder="חיפוש לפי מספר מכולה / לקוח / ספן / נמל..."
+            placeholder="חיפוש לפי מספר מכולה / ספק / ספן / נמל..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -277,28 +304,45 @@ export default function Containers() {
               <thead>
                 <tr>
                   <SortableHeader label="מספר מכולה" sortKey="container_number" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                  <SortableHeader label="לקוח" sortKey="customer_name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                   <SortableHeader label="ספק" sortKey="supplier" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                  <SortableHeader label="מסלול" sortKey="route" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="גודל / סוג" sortKey="size" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="ימים חופשיים" sortKey="free_days" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                   <SortableHeader label="סטטוס" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                   <SortableHeader label="ETA" sortKey="eta" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((c) => (
-                  <tr key={c.id} onClick={() => navigate(`/containers/${c.id}`)} style={{ cursor: "pointer" }}>
-                    <td className="mono">{c.container_number}</td>
-                    <td>{c.customer_name || "—"}</td>
-                    <td>{c.container_suppliers?.[0]?.supplier_name || "—"}</td>
-                    <td>
-                      {c.origin_port || "—"} → {c.dest_port || "—"}
-                    </td>
-                    <td>
-                      <span className={`pill pill-status-${c.status}`}>{CONTAINER_STATUS_LABEL[c.status]}</span>
-                    </td>
-                    <td>{c.eta ? new Date(c.eta).toLocaleDateString("he-IL") : "—"}</td>
-                  </tr>
-                ))}
+                {sorted.map((c) => {
+                  const suppliers = suppliersOf(c);
+                  const hasFreeDays = c.port_free_days != null || c.carrier_free_days != null;
+                  return (
+                    <tr key={c.id} onClick={() => navigate(`/containers/${c.id}`)} style={{ cursor: "pointer" }}>
+                      <td className="mono">{c.container_number}</td>
+                      <td>
+                        {suppliers.length === 0
+                          ? "—"
+                          : suppliers.map((name) => (
+                              <div key={name}>{name}</div>
+                            ))}
+                      </td>
+                      <td className="mono">{c.container_size || "—"}</td>
+                      <td>
+                        {hasFreeDays ? (
+                          <>
+                            <div>נמל: {c.port_free_days ?? "—"}</div>
+                            <div>ספן: {c.carrier_free_days ?? "—"}</div>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
+                        <span className={`pill pill-status-${c.status}`}>{CONTAINER_STATUS_LABEL[c.status]}</span>
+                      </td>
+                      <td>{c.eta ? new Date(c.eta).toLocaleDateString("he-IL") : "—"}</td>
+                    </tr>
+                  );
+                })}
                 {sorted.length === 0 && (
                   <tr>
                     <td colSpan={6} className="muted" style={{ textAlign: "center", padding: "2rem" }}>

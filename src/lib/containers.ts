@@ -61,7 +61,9 @@ export interface ContainerListRow {
   shipper_name: string | null;
   warehouse_arrival_date: string | null;
   warehouse_departure_date: string | null;
+  port_free_days: number | null;
   port_free_days_end: string | null;
+  carrier_free_days: number | null;
   carrier_free_days_end: string | null;
   container_size: string | null;
   container_suppliers: { supplier_name: string; created_at: string }[];
