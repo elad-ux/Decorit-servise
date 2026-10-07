@@ -208,6 +208,10 @@ function carouselWarning(cards: TemplateCarouselCard[]): string | null {
   if (cards.some((c) => !c.header_sample_media_url)) return "לכל כרטיס חייבת להיות תמונה/וידאו.";
   const headerTypes = new Set(cards.map((c) => c.header_type));
   if (headerTypes.size > 1) return "כל הכרטיסים חייבים להיות מאותו סוג מדיה (כולם תמונה או כולם וידאו).";
+  const noButtonCards = cards.map((c, i) => (c.buttons.length === 0 ? i + 1 : 0)).filter((n) => n > 0);
+  if (noButtonCards.length > 0) {
+    return `Meta מחייבת לפחות כפתור אחד בכל כרטיס בקרוסלה. חסר כפתור ב${noButtonCards.length === 1 ? "כרטיס" : "כרטיסים"} ${noButtonCards.join(", ")}.`;
+  }
   const signatures = new Set(cards.map((c) => c.buttons.map((b) => b.type).join(",")));
   if (signatures.size > 1) return 'לכל הכרטיסים חייב להיות אותו מספר וסוג כפתורים, באותו סדר (לפי הגבלת Meta).';
   return null;
@@ -500,6 +504,13 @@ export default function BroadcastTemplates() {
   }
 
   async function handleSubmitToMeta(t: BroadcastTemplate) {
+    if (t.header_type === "carousel") {
+      const warning = carouselWarning(t.carousel_cards ?? []);
+      if (warning) {
+        setError(`לא ניתן לשלוח ל-Meta: ${warning} ערכו את התבנית ושלחו שוב.`);
+        return;
+      }
+    }
     if (!confirm(`לשלוח את התבנית "${t.name}" לאישור Meta? לאחר השליחה לא ניתן לערוך אותה עד לקבלת תשובה.`)) return;
     setBusyId(t.id);
     setError(null);
@@ -950,6 +961,10 @@ export default function BroadcastTemplates() {
               {editing.header_type === "carousel" && (
                 <div className="field">
                   <label>כרטיסי הקרוסלה (2–10)</label>
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    דרישות Meta: לכל כרטיס חייבים להיות תמונה/וידאו ו<strong>לפחות כפתור אחד</strong> (עד 2). כל הכרטיסים
+                    חייבים להכיל אותו מספר, סוג וסדר כפתורים, ואותו סוג מדיה. תבנית שכרטיס בה ללא כפתור תידחה על ידי Meta.
+                  </p>
                   {editing.carousel_cards.map((card, i) => (
                     <div key={i} style={{ border: "1px solid var(--linen)", borderRadius: 8, padding: "0.75rem", marginBottom: "0.6rem" }}>
                       <div className="button-row" style={{ marginBottom: "0.4rem" }}>
