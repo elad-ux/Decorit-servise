@@ -102,6 +102,7 @@ export default function Containers() {
   const [containers, setContainers] = useState<ContainerListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("eta");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -125,7 +126,7 @@ export default function Containers() {
     setLoading(true);
     setError(null);
     try {
-      setContainers(await listContainers(sessionToken));
+      setContainers(await listContainers(sessionToken, showArchived));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינת המכולות");
     } finally {
@@ -136,7 +137,7 @@ export default function Containers() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [showArchived]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -288,6 +289,9 @@ export default function Containers() {
         </div>
 
         <div className="toolbar">
+          <button type="button" className="btn-link" onClick={() => setShowArchived((v) => !v)}>
+            {showArchived ? "← חזרה למכולות פעילות" : "ארכיון"}
+          </button>
           <input
             className="input-inline"
             placeholder="חיפוש לפי מספר מכולה / ספק / ספן / נמל..."

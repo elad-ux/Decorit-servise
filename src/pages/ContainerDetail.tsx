@@ -65,6 +65,8 @@ function containerToEditableFields(c: Container): ContainerFieldUpdates {
     consignee_address: c.consignee_address ?? "",
     notify_party: c.notify_party ?? "",
     notes: c.notes ?? "",
+    port_free_days: c.port_free_days,
+    carrier_free_days: c.carrier_free_days,
   };
 }
 
@@ -83,6 +85,7 @@ export default function ContainerDetail() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [archiving, setArchiving] = useState(false);
   const [editingFields, setEditingFields] = useState<ContainerFieldUpdates | null>(null);
   const [savingFields, setSavingFields] = useState(false);
 
@@ -203,6 +206,22 @@ export default function ContainerDetail() {
     }
   }
 
+  async function handleArchive(archive: boolean) {
+    if (!container) return;
+    if (archive && !confirm(`להעביר את מכולה ${container.container_number} לארכיון? הסטטוס לא ישתנה והמכולה תוסתר מהרשימה הראשית.`)) return;
+    setArchiving(true);
+    setError(null);
+    try {
+      await updateContainerField(sessionToken, container.id, { is_archived: archive });
+      if (archive) navigate("/containers");
+      else await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בעדכון ארכיון");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   async function handleDelete() {
     if (!container) return;
     if (!confirm(`למחוק את מכולה ${container.container_number}? הפעולה אינה הפיכה — היסטוריית סטטוסים ומסמכים לא יימחקו אוטומטית.`)) return;
@@ -279,6 +298,7 @@ export default function ContainerDetail() {
             <div className="broadcast-header">
               <h1 className="page-title mono">{container.container_number}</h1>
               <span className={`pill pill-status-${container.status}`}>{CONTAINER_STATUS_LABEL[container.status]}</span>
+              {container.is_archived && <span className="pill">בארכיון</span>}
               {canEditAll && (
                 <button type="button" className="btn-link" onClick={() => setEditingFields(containerToEditableFields(container))}>
                   עריכת פרטים
@@ -311,6 +331,12 @@ export default function ContainerDetail() {
               <div className="field">
                 <label>גודל מכולה</label>
                 <p>{container.container_size || "—"}</p>
+              </div>
+              <div className="field">
+                <label>ימים חופשיים</label>
+                <p>
+                  נמל: {container.port_free_days ?? "—"} · ספן: {container.carrier_free_days ?? "—"}
+                </p>
               </div>
               <div className="field">
                 <label>נמל מוצא → יעד</label>
@@ -588,6 +614,11 @@ export default function ContainerDetail() {
             </div>
 
             {canEditAll && (
+              <button type="button" className="btn-link" disabled={archiving} onClick={() => void handleArchive(!container.is_archived)} style={{ marginInlineEnd: "1rem" }}>
+                {archiving ? "מעדכן..." : container.is_archived ? "שחזור מארכיון" : "העבר לארכיון"}
+              </button>
+            )}
+            {canEditAll && (
               <button type="button" className="btn-link btn-link-danger" disabled={deleting} onClick={() => void handleDelete()}>
                 {deleting ? "מוחק..." : "מחיקת מכולה"}
               </button>
@@ -630,6 +661,24 @@ export default function ContainerDetail() {
             <div className="field">
               <label>תיאור המטען</label>
               <input value={editingFields.cargo_description ?? ""} onChange={(e) => setEditingFields({ ...editingFields, cargo_description: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>ימים חופשיים בנמל</label>
+              <input
+                type="number"
+                min={0}
+                value={editingFields.port_free_days ?? ""}
+                onChange={(e) => setEditingFields({ ...editingFields, port_free_days: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+            </div>
+            <div className="field">
+              <label>ימים חופשיים אצל הספן</label>
+              <input
+                type="number"
+                min={0}
+                value={editingFields.carrier_free_days ?? ""}
+                onChange={(e) => setEditingFields({ ...editingFields, carrier_free_days: e.target.value === "" ? null : Number(e.target.value) })}
+              />
             </div>
             <div className="field">
               <label>חבילות</label>

@@ -66,6 +66,8 @@ export interface ContainerListRow {
   carrier_free_days: number | null;
   carrier_free_days_end: string | null;
   container_size: string | null;
+  is_archived?: boolean;
+  archived_at?: string | null;
   container_suppliers: { supplier_name: string; created_at: string }[];
 }
 
@@ -170,9 +172,10 @@ export interface ContainerDocument {
   supplier_id: string | null;
 }
 
-export async function listContainers(sessionToken: string): Promise<ContainerListRow[]> {
+export async function listContainers(sessionToken: string, archived = false): Promise<ContainerListRow[]> {
   const res = await postJson<{ containers: ContainerListRow[] }>(ENDPOINTS.containersList, {
     session_token: sessionToken,
+    archived,
   });
   return res.containers;
 }
@@ -223,6 +226,10 @@ export interface ContainerFieldUpdates {
   notes?: string | null;
   ownership_confirmed_by?: string | null;
   ownership_confirmed_at?: string | null;
+  port_free_days?: number | null;
+  carrier_free_days?: number | null;
+  /** archived_at is stamped/cleared server-side. Status is not touched. */
+  is_archived?: boolean;
 }
 
 /**
