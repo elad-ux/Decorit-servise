@@ -1,4 +1,4 @@
-import { postJson } from "./api";
+import { LONG_REQUEST_TIMEOUT_MS, postJson } from "./api";
 import { ENDPOINTS } from "./config";
 
 // Unlike the broadcast (marketing) endpoints, containers are one-webhook-per-operation —
@@ -318,7 +318,7 @@ export async function uploadContainerDocument(
     original_name: file.name,
     file_base64,
     mime_type: file.type || "application/pdf",
-  });
+  }, LONG_REQUEST_TIMEOUT_MS);
 }
 
 export interface SmartUploadBlResult {
@@ -342,7 +342,7 @@ export async function smartUploadBl(sessionToken: string, file: File): Promise<S
     session_token: sessionToken,
     file_name: file.name,
     file_base64,
-  });
+  }, LONG_REQUEST_TIMEOUT_MS);
 }
 
 /** Returns a signed, directly-fetchable URL valid for 5 minutes. */

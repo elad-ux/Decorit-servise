@@ -34,22 +34,37 @@ export interface OtpVerifyResponse {
   name: string;
 }
 
+/** Default per-request timeout; uploads / AI parsing pass a longer one. */
+export const REQUEST_TIMEOUT_MS = 45_000;
+export const LONG_REQUEST_TIMEOUT_MS = 180_000;
+
 /**
  * Every call is a POST with a JSON body — this is the contract every
  * n8n "Dashboard API" webhook expects (see the spec artifact). Failures are
  * normalized into ApiError so callers don't need to special-case fetch vs.
  * HTTP-error vs. n8n's own {error:true} shape.
  */
-export async function postJson<T>(url: string, body: unknown): Promise<T> {
+export async function postJson<T>(url: string, body: unknown, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   let res: Response;
+  // Without a timeout a hung n8n webhook leaves the UI on "טוען..." forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
   } catch {
-    throw new ApiError("שגיאת רשת — לא ניתן להתחבר לשרת", 0);
+    throw new ApiError(
+      controller.signal.aborted
+        ? "השרת לא הגיב בזמן — נסו שוב בעוד רגע"
+        : "שגיאת רשת — לא ניתן להתחבר לשרת",
+      0,
+    );
+  } finally {
+    clearTimeout(timer);
   }
 
   let data: unknown = null;
