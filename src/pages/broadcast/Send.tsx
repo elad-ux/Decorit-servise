@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import {
@@ -34,6 +34,49 @@ const BATCH_STATUS_LABEL: Record<string, string> = {
   created: "נוצר",
 };
 
+const BATCHES_PAGE_SIZE = 5;
+
+type BatchSortKey = "status" | "target_count" | "scheduled_for" | "created_at";
+
+function BatchSortableHeader({
+  label,
+  sortKey: key,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: BatchSortKey;
+  activeKey: BatchSortKey;
+  dir: "asc" | "desc";
+  onSort: (key: BatchSortKey) => void;
+}) {
+  const isActive = key === activeKey;
+  return (
+    <th>
+      <button
+        type="button"
+        onClick={() => onSort(key)}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          font: "inherit",
+          fontWeight: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.25rem",
+        }}
+      >
+        {label}
+        <span style={{ opacity: isActive ? 1 : 0.25, fontSize: "0.75em" }}>{isActive && dir === "desc" ? "▲" : "▼"}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function BroadcastSend() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
@@ -57,6 +100,9 @@ export default function BroadcastSend() {
   const [creating, setCreating] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [batchSortKey, setBatchSortKey] = useState<BatchSortKey>("created_at");
+  const [batchSortDir, setBatchSortDir] = useState<"asc" | "desc">("desc");
+  const [batchPage, setBatchPage] = useState(1);
 
   const readyTemplates = templates.filter((t) => t.status === "approved" && !!t.meta_template_name);
   const selectedTemplate = readyTemplates.find((t) => t.id === templateId);
@@ -207,6 +253,43 @@ export default function BroadcastSend() {
     }
   }
 
+  function handleBatchSort(key: BatchSortKey) {
+    if (batchSortKey === key) {
+      setBatchSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setBatchSortKey(key);
+      setBatchSortDir(key === "created_at" || key === "scheduled_for" ? "desc" : "asc");
+    }
+    setBatchPage(1);
+  }
+
+  const sortedBatches = useMemo(() => {
+    function val(b: BroadcastBatch): string | number {
+      switch (batchSortKey) {
+        case "status":
+          return b.status || "";
+        case "target_count":
+          return b.target_count ?? -1;
+        case "scheduled_for":
+          return b.scheduled_for ? new Date(b.scheduled_for).getTime() : 0;
+        case "created_at":
+          return new Date(b.created_at).getTime();
+        default:
+          return "";
+      }
+    }
+    return [...batches].sort((a, b) => {
+      const va = val(a);
+      const vb = val(b);
+      const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb), "he");
+      return batchSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [batches, batchSortKey, batchSortDir]);
+
+  const batchTotalPages = Math.max(1, Math.ceil(sortedBatches.length / BATCHES_PAGE_SIZE));
+  const batchSafePage = Math.min(batchPage, batchTotalPages);
+  const pagedBatches = sortedBatches.slice((batchSafePage - 1) * BATCHES_PAGE_SIZE, batchSafePage * BATCHES_PAGE_SIZE);
+
   return (
     <div>
       {readyTemplates.length === 0 ? (
@@ -324,15 +407,15 @@ export default function BroadcastSend() {
           <table>
             <thead>
               <tr>
-                <th>סטטוס</th>
-                <th>יעד</th>
-                <th>מתוזמן ל</th>
-                <th>נוצר</th>
+                <BatchSortableHeader label="סטטוס" sortKey="status" activeKey={batchSortKey} dir={batchSortDir} onSort={handleBatchSort} />
+                <BatchSortableHeader label="יעד" sortKey="target_count" activeKey={batchSortKey} dir={batchSortDir} onSort={handleBatchSort} />
+                <BatchSortableHeader label="מתוזמן ל" sortKey="scheduled_for" activeKey={batchSortKey} dir={batchSortDir} onSort={handleBatchSort} />
+                <BatchSortableHeader label="נוצר" sortKey="created_at" activeKey={batchSortKey} dir={batchSortDir} onSort={handleBatchSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {batches.map((b) => (
+              {pagedBatches.map((b) => (
                 <tr key={b.id}>
                   <td>
                     <span className={`pill pill-status-${b.status}`}>{BATCH_STATUS_LABEL[b.status] ?? b.status}</span>
@@ -363,6 +446,30 @@ export default function BroadcastSend() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && batchTotalPages > 1 && (
+        <div className="toolbar" style={{ justifyContent: "center" }}>
+          <button
+            type="button"
+            className="btn-link"
+            disabled={batchSafePage <= 1}
+            onClick={() => setBatchPage(batchSafePage - 1)}
+          >
+            ← הקודם
+          </button>
+          <span className="muted" style={{ fontSize: ".85rem" }}>
+            עמוד {batchSafePage} מתוך {batchTotalPages}
+          </span>
+          <button
+            type="button"
+            className="btn-link"
+            disabled={batchSafePage >= batchTotalPages}
+            onClick={() => setBatchPage(batchSafePage + 1)}
+          >
+            הבא →
+          </button>
         </div>
       )}
     </div>
