@@ -1,5 +1,5 @@
 import { ENDPOINTS } from "./config";
-import { postAction, postJson } from "./api";
+import { LONG_REQUEST_TIMEOUT_MS, postAction, postJson } from "./api";
 import { buildCsv, downloadCsv } from "./csv";
 
 export interface BroadcastContact {
@@ -359,7 +359,7 @@ export async function uploadBroadcastMedia(sessionToken: string, file: File): Pr
     file_base64,
     original_name: file.name,
     mime_type: file.type || "application/octet-stream",
-  });
+  }, LONG_REQUEST_TIMEOUT_MS);
 }
 
 export function deleteTemplate(sessionToken: string, id: string): Promise<unknown> {
