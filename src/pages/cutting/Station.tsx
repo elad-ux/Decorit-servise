@@ -7,21 +7,12 @@ import SortableTh from "../../components/SortableTh";
 import { PrinterIcon } from "../../components/icons";
 import { type SortState, nextSort, sortRows } from "../../lib/tableSort";
 import { DateTimeCell, PackagingCell } from "../../components/TaskCells";
-import { PACKAGING_OPTIONS, type CuttingTask, formatPackaging, listTasks, reopenTask, reportComplete } from "../../lib/cutting";
+import { PACKAGING_OPTIONS, type CuttingTask, finishedAt, finishedTime, formatPackaging, listTasks, newestFirst, reopenTask, reportComplete } from "../../lib/cutting";
 
 function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
-
-/** When a finished task was closed out: completion time, or the cancellation time for a cancelled one. */
-const finishedAt = (t: CuttingTask): string | null => t.completed_at ?? t.cancelled_at ?? t.archived_at;
-const finishedTime = (t: CuttingTask) => {
-  const iso = finishedAt(t);
-  return iso ? new Date(iso).getTime() : 0;
-};
-/** Newest first — the default order of both finished-task views. */
-const newestFirst = (a: CuttingTask, b: CuttingTask) => finishedTime(b) - finishedTime(a);
 
 /** The archive can grow without bound; render the newest rows only. */
 const ARCHIVE_RENDER_LIMIT = 200;

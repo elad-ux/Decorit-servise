@@ -258,3 +258,12 @@ export function getPrintAgentKey(sessionToken: string): Promise<{ agent_id: stri
     (res) => res.data,
   );
 }
+
+/** When a finished task was closed out: completion time, or the cancellation time for a cancelled one. */
+export const finishedAt = (t: CuttingTask): string | null => t.completed_at ?? t.cancelled_at ?? t.archived_at;
+export const finishedTime = (t: CuttingTask): number => {
+  const iso = finishedAt(t);
+  return iso ? new Date(iso).getTime() : 0;
+};
+/** Newest first — the default order of the finished-task views. */
+export const newestFirst = (a: CuttingTask, b: CuttingTask): number => finishedTime(b) - finishedTime(a);
