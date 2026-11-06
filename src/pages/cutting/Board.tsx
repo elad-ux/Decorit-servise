@@ -27,6 +27,38 @@ const STATUS_LABEL: Record<CuttingTaskStatus, string> = {
   archived: "בארכיון",
 };
 
+const iconProps = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  "aria-hidden": true,
+};
+
+function PencilIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
 const PRINT_LABEL: Record<PrintJobStatus, string> = {
   queued: "ממתין להדפסה",
   claimed: "מדפיס...",
@@ -229,14 +261,14 @@ export default function CuttingBoard() {
   }
 
   async function handleDelete(task: CuttingTask) {
-    if (!confirm(`למחוק את המשימה של ${task.customer_name}?`)) return;
+    if (!confirm(`לבטל את המשימה של ${task.customer_name}? היא תועבר לארכיון כ"בוטל" ויודפס תלוש ביטול.`)) return;
     setBusyId(task.id);
     setError(null);
     try {
       await deleteTask(sessionToken, task.id);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "שגיאה במחיקה");
+      setError(err instanceof ApiError ? err.message : "שגיאה בביטול המשימה");
     } finally {
       setBusyId(null);
     }
@@ -322,7 +354,7 @@ export default function CuttingBoard() {
                   <td>{t.quantity_ordered}</td>
                   <td>
                     <span className={`pill pill-status-${t.status === "archived" ? "deleted_from_meta" : t.status}`}>
-                      {STATUS_LABEL[t.status]}
+                      {t.status === "archived" && t.cancelled_at ? "בוטל" : STATUS_LABEL[t.status]}
                     </span>
                     {t.is_urgent && (
                       <div>
@@ -372,16 +404,24 @@ export default function CuttingBoard() {
                   <td>
                     {canEdit && t.status === "pending" && (
                       <>
-                        <button type="button" className="btn-link" onClick={() => openEdit(t)}>
-                          עריכה
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          title="עריכה"
+                          aria-label="עריכה"
+                          onClick={() => openEdit(t)}
+                        >
+                          <PencilIcon />
                         </button>
                         <button
                           type="button"
-                          className="btn-link btn-link-danger"
+                          className="icon-btn icon-btn-danger"
+                          title="ביטול משימה"
+                          aria-label="ביטול משימה"
                           disabled={busyId === t.id}
                           onClick={() => void handleDelete(t)}
                         >
-                          מחיקה
+                          <TrashIcon />
                         </button>
                       </>
                     )}

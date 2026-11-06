@@ -42,6 +42,9 @@ export interface CuttingTask {
   completed_by: string | null;
   completed_at: string | null;
   archived_at: string | null;
+  /** Set when the task was cancelled (it is then archived). */
+  cancelled_at: string | null;
+  cancelled_by: string | null;
   updated_at: string;
   /** Set only by the `update` action — null on a freshly created, never-edited task. */
   updated_by: string | null;

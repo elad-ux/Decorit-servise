@@ -1466,3 +1466,30 @@ tbody tr.row-urgent:hover {
   gap: 0.5rem;
   justify-content: center;
 }
+
+/* Icon-only action buttons (e.g. edit / cancel in the cutting board) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin-inline-end: 0.25rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.icon-btn-danger {
+  color: var(--danger-500);
+}
