@@ -12,6 +12,7 @@ import Permissions from "./pages/Permissions";
 import ActivityLog from "./pages/ActivityLog";
 import Containers from "./pages/Containers";
 import ContainerDetail from "./pages/ContainerDetail";
+import StationOnlyGate from "./components/StationOnlyGate";
 import CuttingLayout from "./components/CuttingLayout";
 import CuttingBoard from "./pages/cutting/Board";
 import CuttingStation from "./pages/cutting/Station";
@@ -22,67 +23,28 @@ export default function App() {
     <div className="app-shell">
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Everything outside the cutting module. A station-only user (cutter)
+            is redirected to /cutting/station by the gate. */}
         <Route
-          path="/"
           element={
             <RequireAuth>
-              <Hub />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/containers"
-          element={
-            <RequireAuth>
-              <Containers />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/containers/:id"
-          element={
-            <RequireAuth>
-              <ContainerDetail />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/users"
-          element={
-            <RequireAuth>
-              <Users />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/permissions"
-          element={
-            <RequireAuth>
-              <Permissions />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/activity-log"
-          element={
-            <RequireAuth>
-              <ActivityLog />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/broadcast"
-          element={
-            <RequireAuth>
-              <BroadcastLayout />
+              <StationOnlyGate />
             </RequireAuth>
           }
         >
-          <Route index element={<Navigate to="contacts" replace />} />
-          <Route path="contacts" element={<BroadcastContacts />} />
-          <Route path="templates" element={<BroadcastTemplates />} />
-          <Route path="send" element={<BroadcastSend />} />
-          <Route path="status" element={<BroadcastStatus />} />
+          <Route path="/" element={<Hub />} />
+          <Route path="/containers" element={<Containers />} />
+          <Route path="/containers/:id" element={<ContainerDetail />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/permissions" element={<Permissions />} />
+          <Route path="/activity-log" element={<ActivityLog />} />
+          <Route path="/broadcast" element={<BroadcastLayout />}>
+            <Route index element={<Navigate to="contacts" replace />} />
+            <Route path="contacts" element={<BroadcastContacts />} />
+            <Route path="templates" element={<BroadcastTemplates />} />
+            <Route path="send" element={<BroadcastSend />} />
+            <Route path="status" element={<BroadcastStatus />} />
+          </Route>
         </Route>
         <Route
           path="/cutting"

@@ -38,6 +38,24 @@ export async function myPermissions(sessionToken: string): Promise<string[]> {
 }
 
 /**
+ * True when the user's entire access is the cutter's workstation: they can
+ * report cut work, can't create/edit orders, and hold no feature key outside
+ * the cutting module. Decided by permissions, not by the literal role name,
+ * because roles are dynamic. Admin (a server-side bypass with no key list)
+ * must be handled by the caller and is never station-only.
+ *
+ * UI visibility only — the server still enforces every key on every call.
+ */
+export function isStationOnly(keys: readonly string[]): boolean {
+  return (
+    keys.includes("cutting.tasks.report") &&
+    !keys.includes("cutting.tasks.create") &&
+    !keys.includes("cutting.tasks.edit") &&
+    keys.every((k) => k.startsWith("cutting."))
+  );
+}
+
+/**
  * Toggles a single (role, feature_key) permission on or off. "admin" is
  * rejected server-side — it's a hardcoded full-access bypass everywhere,
  * never itself editable, so the team can never lock itself out.
