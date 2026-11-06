@@ -1493,3 +1493,71 @@ tbody tr.row-urgent:hover {
 .icon-btn-danger {
   color: var(--danger-500);
 }
+
+
+/* Sortable table headers (cutting station) */
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.th-sort-arrow {
+  font-size: 0.75em;
+  opacity: 0.35;
+}
+.th-sort-active .th-sort-arrow {
+  opacity: 1;
+}
+
+/* Printing the cutting station's pending table */
+.print-only {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block;
+  }
+  .print-header h1 {
+    margin: 0 0 0.25rem;
+    font-size: 16pt;
+  }
+  .print-header p {
+    margin: 0.1rem 0;
+    font-size: 10pt;
+  }
+  body.print-station .topbar,
+  body.print-station .broadcast-page > .broadcast-header,
+  body.print-station .broadcast-page > .tabs {
+    display: none !important;
+  }
+  body.print-station .table-wrap {
+    overflow: visible;
+    box-shadow: none;
+    border: 0;
+  }
+  body.print-station table {
+    font-size: 11pt;
+  }
+  body.print-station th,
+  body.print-station td {
+    border-bottom: 1px solid #999;
+  }
+  body.print-station tr {
+    break-inside: avoid;
+  }
+  .th-sort-arrow {
+    display: none;
+  }
+}

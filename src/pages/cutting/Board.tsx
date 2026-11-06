@@ -4,6 +4,7 @@ import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
+import { PencilIcon, TrashIcon } from "../../components/icons";
 import {
   type CreateTaskInput,
   type CuttingFabric,
@@ -26,38 +27,6 @@ const STATUS_LABEL: Record<CuttingTaskStatus, string> = {
   completed: "הושלם",
   archived: "בארכיון",
 };
-
-const iconProps = {
-  width: 18,
-  height: 18,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-
-function PencilIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
-}
 
 const PRINT_LABEL: Record<PrintJobStatus, string> = {
   queued: "ממתין להדפסה",

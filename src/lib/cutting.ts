@@ -37,7 +37,12 @@ export interface CuttingTask {
   created_by: string;
   created_at: string;
   quantity_completed: number | null;
+  /** Legacy single value ("roll" | "bag"), kept for old rows. New reports use `packaging_types` + `packages_count`. */
   packaging_type: string | null;
+  /** Kinds of packaging the cutter used (any of bag / roll / pallet). */
+  packaging_types: string[] | null;
+  /** Total packages across all the kinds in `packaging_types`. */
+  packages_count: number | null;
   cutter_notes: string | null;
   completed_by: string | null;
   completed_at: string | null;
@@ -142,10 +147,32 @@ export function listTasks(sessionToken: string, filter: ListTasksFilter = {}): P
   return manage(sessionToken, "list", filter);
 }
 
+export const PACKAGING_OPTIONS = [
+  { value: "bag", label: "שקית/חבילה" },
+  { value: "roll", label: "גליל" },
+  { value: "pallet", label: "משטח/קלוב" },
+] as const;
+
+const PACKAGING_LABEL: Record<string, string> = Object.fromEntries(PACKAGING_OPTIONS.map((o) => [o.value, o.label]));
+
+/** "שקית/חבילה + גליל · 5 חבילות" — falls back to the legacy single value on old rows. */
+export function formatPackaging(t: Pick<CuttingTask, "packaging_type" | "packaging_types" | "packages_count">): string {
+  if (t.packaging_types && t.packaging_types.length > 0) {
+    const kinds = t.packaging_types.map((k) => PACKAGING_LABEL[k] ?? k).join(" + ");
+    const n = t.packages_count;
+    return n ? `${kinds} · ${n === 1 ? "חבילה אחת" : `${n} חבילות`}` : kinds;
+  }
+  if (t.packaging_type) return PACKAGING_LABEL[t.packaging_type] ?? t.packaging_type;
+  return "";
+}
+
 export interface ReportCompleteInput {
   id: string;
   quantity_completed: number;
-  packaging_type?: string;
+  /** Any of "bag" | "roll" | "pallet". When given, `packages_count` is required (>= number of kinds). */
+  packaging_types?: string[];
+  /** Total number of packages across all selected kinds. */
+  packages_count?: number;
   cutter_notes?: string;
 }
 
