@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
 import FabricImportModal from "./FabricImportModal";
+import { PencilIcon } from "../../components/icons";
 import {
   getPrintAgentKey,
   type CuttingFabric,
@@ -71,6 +72,7 @@ export default function CuttingSettings() {
   const [savingModal, setSavingModal] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [fabricSearch, setFabricSearch] = useState("");
 
   const [archiveDays, setArchiveDays] = useState("");
   const [savingArchive, setSavingArchive] = useState(false);
@@ -103,6 +105,18 @@ export default function CuttingSettings() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManageSettings]);
+
+  // Narrow the list while typing: a fabric-name match keeps all its colors;
+  // otherwise only the colors that match are shown, so a stock toggle is one tap away.
+  const visibleFabrics = useMemo(() => {
+    const q = fabricSearch.trim().toLowerCase();
+    if (!q) return fabrics;
+    return fabrics.flatMap((f) => {
+      if (f.name.toLowerCase().includes(q)) return [f];
+      const colors = f.colors.filter((c) => c.color_name.toLowerCase().includes(q));
+      return colors.length > 0 ? [{ ...f, colors }] : [];
+    });
+  }, [fabrics, fabricSearch]);
 
   async function handleToggleStock(color: CuttingFabricColor) {
     setBusyId(color.id);
@@ -256,6 +270,14 @@ export default function CuttingSettings() {
         )}
       </div>
 
+      <div className="field" style={{ maxWidth: 320, marginTop: "0.5rem" }}>
+        <input
+          type="search"
+          placeholder="חיפוש בד או צבע..."
+          value={fabricSearch}
+          onChange={(e) => setFabricSearch(e.target.value)}
+        />
+      </div>
       <div className="chip-row" style={{ margin: "0.5rem 0 1rem" }}>
         <button type="button" className={`chip${showInactive ? " chip-selected" : ""}`} onClick={() => setShowInactive((v) => !v)}>
           הצג בדים לא פעילים
@@ -277,7 +299,7 @@ export default function CuttingSettings() {
               </tr>
             </thead>
             <tbody>
-              {fabrics.map((f) => (
+              {visibleFabrics.map((f) => (
                 <tr key={f.id}>
                   <td style={{ verticalAlign: "top" }}>
                     <div>{f.name}</div>
@@ -291,8 +313,14 @@ export default function CuttingSettings() {
                         >
                           {f.active ? "פעיל" : "לא פעיל"}
                         </button>
-                        <button type="button" className="btn-link" onClick={() => setEditingFabric({ id: f.id, name: f.name, active: f.active })}>
-                          עריכה
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          title="עריכה"
+                          aria-label="עריכה"
+                          onClick={() => setEditingFabric({ id: f.id, name: f.name, active: f.active })}
+                        >
+                          <PencilIcon />
                         </button>
                       </div>
                     )}
@@ -331,10 +359,10 @@ export default function CuttingSettings() {
                   <td></td>
                 </tr>
               ))}
-              {fabrics.length === 0 && (
+              {visibleFabrics.length === 0 && (
                 <tr>
                   <td colSpan={3} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                    אין בדים בקטלוג עדיין
+                    {fabrics.length === 0 ? "אין בדים בקטלוג עדיין" : "לא נמצאו בדים או צבעים התואמים את החיפוש"}
                   </td>
                 </tr>
               )}
