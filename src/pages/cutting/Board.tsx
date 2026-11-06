@@ -5,7 +5,9 @@ import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
 import { PencilIcon, TrashIcon } from "../../components/icons";
-import { PackagingCell } from "../../components/TaskCells";
+import { DateTimeCell, PackagingCell } from "../../components/TaskCells";
+import SortableTh from "../../components/SortableTh";
+import { type SortState, nextSort, sortRows } from "../../lib/tableSort";
 import {
   type CreateTaskInput,
   type CuttingFabric,
@@ -13,6 +15,9 @@ import {
   type CuttingTaskStatus,
   createTask,
   deleteTask,
+  finishedAt,
+  finishedTime,
+  newestFirst,
   listFabrics,
   getPrintStatus,
   listTasks,
@@ -27,6 +32,17 @@ const STATUS_LABEL: Record<CuttingTaskStatus, string> = {
   pending: "בהמתנה",
   completed: "הושלם",
   archived: "בארכיון",
+};
+
+type BoardSortKey = "customer" | "fabric" | "quantity" | "status" | "notes" | "created" | "completed";
+const BOARD_SORT: Record<BoardSortKey, (t: CuttingTask) => string | number | null> = {
+  customer: (t) => t.customer_name,
+  fabric: (t) => `${t.fabric_name ?? ""} ${t.color_name ?? ""}`.trim(),
+  quantity: (t) => t.quantity_ordered,
+  status: (t) => (t.status === "archived" && t.cancelled_at ? "בוטל" : STATUS_LABEL[t.status]),
+  notes: (t) => t.office_notes,
+  created: (t) => (t.created_at ? new Date(t.created_at).getTime() : null),
+  completed: (t) => finishedTime(t) || null,
 };
 
 const PRINT_LABEL: Record<PrintJobStatus, string> = {
@@ -86,6 +102,7 @@ export default function CuttingBoard() {
 
   const [statusFilter, setStatusFilter] = useState<CuttingTaskStatus | "all">("pending");
   const [urgentOnly, setUrgentOnly] = useState(false);
+  const [sort, setSort] = useState<SortState<BoardSortKey> | null>(null);
   const [customerFilter, setCustomerFilter] = useState("");
 
   const [editing, setEditing] = useState<FormState | null>(null);
@@ -123,6 +140,14 @@ export default function CuttingBoard() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerFilter]);
+
+  const showFinishedCol = statusFilter !== "pending";
+  // Finished views default to newest completion first; header clicks override that.
+  const shownTasks = useMemo(
+    () => sortRows(statusFilter === "completed" || statusFilter === "archived" ? [...tasks].sort(newestFirst) : tasks, sort, BOARD_SORT),
+    [tasks, sort, statusFilter],
+  );
+  const onSort = (key: BoardSortKey) => setSort((cur) => nextSort(cur, key));
 
   async function refreshPrintStatus() {
     try {
@@ -278,7 +303,10 @@ export default function CuttingBoard() {
             key={s}
             type="button"
             className={`chip${statusFilter === s ? " chip-selected" : ""}`}
-            onClick={() => setStatusFilter(s)}
+            onClick={() => {
+              setStatusFilter(s);
+              setSort(null); // each view starts from its default order
+            }}
           >
             {s === "all" ? "הכל" : STATUS_LABEL[s]}
           </button>
@@ -301,18 +329,19 @@ export default function CuttingBoard() {
           <table>
             <thead>
               <tr>
-                <th>לקוח</th>
-                <th>בד וצבע</th>
-                <th>כמות</th>
-                <th>סטטוס</th>
-                <th>הערות</th>
+                <SortableTh label="לקוח" sortKey="customer" sort={sort} onSort={onSort} />
+                <SortableTh label="בד וצבע" sortKey="fabric" sort={sort} onSort={onSort} />
+                <SortableTh label="כמות" sortKey="quantity" sort={sort} onSort={onSort} />
+                <SortableTh label="סטטוס" sortKey="status" sort={sort} onSort={onSort} />
+                <SortableTh label="הערות" sortKey="notes" sort={sort} onSort={onSort} />
                 <th>הדפסה</th>
-                <th>נוצר / עודכן</th>
+                <SortableTh label="נוצר / עודכן" sortKey="created" sort={sort} onSort={onSort} />
+                {showFinishedCol && <SortableTh label="הושלם ב" sortKey="completed" sort={sort} onSort={onSort} />}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {tasks.map((t) => (
+              {shownTasks.map((t) => (
                 <tr key={t.id} className={t.is_urgent ? "row-urgent" : undefined}>
                   <td>
                     {t.customer_name}
@@ -386,6 +415,11 @@ export default function CuttingBoard() {
                       </div>
                     )}
                   </td>
+                  {showFinishedCol && (
+                    <td>
+                      <DateTimeCell iso={finishedAt(t)} />
+                    </td>
+                  )}
                   <td>
                     {canEdit && t.status === "pending" && (
                       <>
@@ -415,7 +449,7 @@ export default function CuttingBoard() {
               ))}
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={showFinishedCol ? 9 : 8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     אין משימות להצגה
                   </td>
                 </tr>
