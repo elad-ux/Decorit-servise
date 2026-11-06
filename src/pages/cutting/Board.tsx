@@ -204,6 +204,11 @@ export default function CuttingBoard() {
       setFormError("יש למלא לקוח, בד, צבע וכמות תקינה");
       return;
     }
+    // Quantity is ordered in tenths of a metre only (0.1, 0.5, 1.2 …), never hundredths.
+    if (quantity < 0.1 || Math.abs(quantity * 10 - Math.round(quantity * 10)) > 1e-9) {
+      setFormError("הכמות חייבת להיות בעשיריות של מטר (למשל 0.1, 0.5, 1.2), ולא פחות מ-0.1");
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -478,8 +483,8 @@ export default function CuttingBoard() {
                 <input
                   required
                   type="number"
-                  min={1}
-                  step="0.01"
+                  min={0.1}
+                  step="0.1"
                   value={editing.quantity_ordered}
                   onChange={(e) => setEditing({ ...editing, quantity_ordered: e.target.value })}
                 />
