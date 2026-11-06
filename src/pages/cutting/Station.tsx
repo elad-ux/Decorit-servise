@@ -6,6 +6,7 @@ import { useCuttingPermissions } from "../../components/CuttingLayout";
 import SortableTh from "../../components/SortableTh";
 import { PrinterIcon } from "../../components/icons";
 import { type SortState, nextSort, sortRows } from "../../lib/tableSort";
+import { DateTimeCell, PackagingCell } from "../../components/TaskCells";
 import { PACKAGING_OPTIONS, type CuttingTask, formatPackaging, listTasks, reopenTask, reportComplete } from "../../lib/cutting";
 
 function fmtDateTime(iso: string | null | undefined): string {
@@ -13,6 +14,19 @@ function fmtDateTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+/** When a finished task was closed out: completion time, or the cancellation time for a cancelled one. */
+const finishedAt = (t: CuttingTask): string | null => t.completed_at ?? t.cancelled_at ?? t.archived_at;
+const finishedTime = (t: CuttingTask) => {
+  const iso = finishedAt(t);
+  return iso ? new Date(iso).getTime() : 0;
+};
+/** Newest first — the default order of both finished-task views. */
+const newestFirst = (a: CuttingTask, b: CuttingTask) => finishedTime(b) - finishedTime(a);
+
+/** The archive can grow without bound; render the newest rows only. */
+const ARCHIVE_RENDER_LIMIT = 200;
+
+type CompletedView = "recent" | "archive";
 type PendingSortKey = "customer" | "fabric" | "quantity" | "created" | "notes";
 type CompletedSortKey = "customer" | "fabric" | "quantity" | "packaging" | "created" | "completed";
 
@@ -30,7 +44,7 @@ const COMPLETED_SORT: Record<CompletedSortKey, (t: CuttingTask) => string | numb
   quantity: (t) => t.quantity_completed,
   packaging: (t) => formatPackaging(t),
   created: (t) => (t.created_at ? new Date(t.created_at).getTime() : null),
-  completed: (t) => (t.completed_at ? new Date(t.completed_at).getTime() : null),
+  completed: (t) => finishedTime(t) || null,
 };
 const PENDING_SORT_LABEL: Record<PendingSortKey, string> = {
   customer: "לקוח",
@@ -50,7 +64,7 @@ function matchesSearch(t: CuttingTask, query: string): boolean {
     t.color_name,
     t.office_notes,
     t.cutter_notes,
-    t.packaging_type,
+    formatPackaging(t),
   ]
     .filter(Boolean)
     .join(" ")
@@ -67,6 +81,10 @@ export default function CuttingStation() {
 
   const [pending, setPending] = useState<CuttingTask[]>([]);
   const [recentlyCompleted, setRecentlyCompleted] = useState<CuttingTask[]>([]);
+  const [completedView, setCompletedView] = useState<CompletedView>("recent");
+  const [archived, setArchived] = useState<CuttingTask[] | null>(null); // null = not loaded yet
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -99,14 +117,20 @@ export default function CuttingStation() {
     [pending, search, fabricFilter, urgentOnly, limitedOnly],
   );
 
+  const completedSource = completedView === "archive" ? (archived ?? []) : recentlyCompleted;
   const filteredCompleted = useMemo(
-    () => recentlyCompleted.filter((t) => matchesSearch(t, search)),
-    [recentlyCompleted, search],
+    () => completedSource.filter((t) => matchesSearch(t, search)),
+    [completedSource, search],
   );
 
   // Default order is the server's (urgent first, then oldest first); a header click overrides it.
   const sortedPending = useMemo(() => sortRows(filteredPending, pendingSort, PENDING_SORT), [filteredPending, pendingSort]);
-  const sortedCompleted = useMemo(() => sortRows(filteredCompleted, completedSort, COMPLETED_SORT), [filteredCompleted, completedSort]);
+  // Default: newest first. A header click re-sorts (the stable sort keeps newest-first among equal values).
+  const sortedCompleted = useMemo(
+    () => sortRows([...filteredCompleted].sort(newestFirst), completedSort, COMPLETED_SORT),
+    [filteredCompleted, completedSort],
+  );
+  const shownCompleted = completedView === "archive" ? sortedCompleted.slice(0, ARCHIVE_RENDER_LIMIT) : sortedCompleted;
 
   // The pending table prints on its own (see the print rules in global.css). Stamp the print time at
   // the moment of printing — for the button and for Ctrl+P alike — straight into the DOM.
@@ -141,7 +165,7 @@ export default function CuttingStation() {
         listTasks(sessionToken, { status: "completed" }),
       ]);
       setPending(pendingTasks);
-      setRecentlyCompleted(completedTasks.slice(0, 20));
+      setRecentlyCompleted(completedTasks);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "שגיאה בטעינת עמדת הגזירה");
     } finally {
@@ -194,6 +218,23 @@ export default function CuttingStation() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function loadArchive() {
+    setArchiveLoading(true);
+    setArchiveError(null);
+    try {
+      setArchived(await listTasks(sessionToken, { status: "archived" }));
+    } catch (err) {
+      setArchiveError(err instanceof ApiError ? err.message : "שגיאה בטעינת הארכיון");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+
+  function switchCompletedView(view: CompletedView) {
+    setCompletedView(view);
+    if (view === "archive" && archived === null && !archiveLoading) void loadArchive();
   }
 
   async function handleReopen(task: CuttingTask) {
@@ -279,7 +320,9 @@ export default function CuttingStation() {
                   )}
                 </td>
                 <td>{t.quantity_ordered}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(t.created_at)}</td>
+                <td>
+                  <DateTimeCell iso={t.created_at} />
+                </td>
                 <td className="muted">{t.office_notes || "—"}</td>
                 <td className="no-print">
                   {canReport && (
@@ -303,50 +346,84 @@ export default function CuttingStation() {
       </section>
 
       <div className="no-print">
-      <h2 className="page-subtitle">הושלמו לאחרונה</h2>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <SortableTh label="לקוח" sortKey="customer" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <SortableTh label="בד וצבע" sortKey="fabric" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <SortableTh label="כמות שהושלמה" sortKey="quantity" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <SortableTh label="אריזה" sortKey="packaging" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <SortableTh label="נוצרה" sortKey="created" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <SortableTh label="הושלם" sortKey="completed" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedCompleted.map((t) => (
-              <tr key={t.id}>
-                <td>{t.customer_name}</td>
-                <td>
-                  {t.fabric_name ?? "—"} / {t.color_name ?? "—"}
-                </td>
-                <td>{t.quantity_completed ?? "—"}</td>
-                <td className="muted">{formatPackaging(t) || "—"}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(t.created_at)}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(t.completed_at)}</td>
-                <td>
-                  {canEdit && (
-                    <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleReopen(t)}>
-                      פתיחה מחדש
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {filteredCompleted.length === 0 && (
-              <tr>
-                <td colSpan={7} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
-                  {recentlyCompleted.length === 0 ? "אין משימות שהושלמו עדיין" : "אין משימות התואמות את החיפוש"}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+        <div className="broadcast-header" style={{ marginTop: "1.5rem" }}>
+          <div className="chip-row">
+            <button type="button" className={`chip${completedView === "recent" ? " chip-selected" : ""}`} onClick={() => switchCompletedView("recent")}>
+              הושלמו לאחרונה ({recentlyCompleted.length})
+            </button>
+            <button type="button" className={`chip${completedView === "archive" ? " chip-selected" : ""}`} onClick={() => switchCompletedView("archive")}>
+              ארכיון{archived ? ` (${archived.length})` : ""}
+            </button>
+          </div>
+        </div>
+        {completedView === "archive" && archiveError && <div className="error-box">{archiveError}</div>}
+        {completedView === "archive" && archiveLoading ? (
+          <p className="muted">טוען ארכיון...</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <SortableTh label="לקוח" sortKey="customer" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <SortableTh label="בד וצבע" sortKey="fabric" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <SortableTh label="כמות שהושלמה" sortKey="quantity" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <SortableTh label="אריזה" sortKey="packaging" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <SortableTh label="נוצרה" sortKey="created" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <SortableTh label="הושלם" sortKey="completed" sort={completedSort} onSort={(k) => setCompletedSort((c) => nextSort(c, k))} />
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {shownCompleted.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      {t.customer_name}
+                      {t.cancelled_at && (
+                        <div>
+                          <span className="pill pill-danger">בוטל</span>
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {t.fabric_name ?? "—"} / {t.color_name ?? "—"}
+                    </td>
+                    <td>{t.quantity_completed ?? "—"}</td>
+                    <td>
+                      <PackagingCell task={t} />
+                    </td>
+                    <td>
+                      <DateTimeCell iso={t.created_at} />
+                    </td>
+                    <td>
+                      <DateTimeCell iso={finishedAt(t)} />
+                    </td>
+                    <td>
+                      {canEdit && t.status === "completed" && (
+                        <button type="button" className="btn-link" disabled={busyId === t.id} onClick={() => void handleReopen(t)}>
+                          פתיחה מחדש
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filteredCompleted.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                      {completedSource.length === 0
+                        ? completedView === "archive"
+                          ? "הארכיון ריק"
+                          : "אין משימות שהושלמו עדיין"
+                        : "אין משימות התואמות את החיפוש"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {completedView === "archive" && filteredCompleted.length > ARCHIVE_RENDER_LIMIT && (
+          <p className="muted">מוצגות {ARCHIVE_RENDER_LIMIT} המשימות הראשונות מתוך {filteredCompleted.length}. צמצמו בחיפוש כדי למצוא משימה ישנה יותר.</p>
+        )}
       </div>
 
       {reporting && (
