@@ -456,7 +456,9 @@ export default function CuttingStation() {
                         const next = on
                           ? reporting.packaging_types.filter((k) => k !== o.value)
                           : [...reporting.packaging_types, o.value];
-                        setReporting({ ...reporting, packaging_types: next, packages_count: next.length === 0 ? "" : reporting.packages_count });
+                        // First kind selected -> count jumps to 1; never below the number of kinds.
+                        const count = next.length === 0 ? "" : String(Math.max(Number(reporting.packages_count) || 0, next.length, 1));
+                        setReporting({ ...reporting, packaging_types: next, packages_count: count });
                       }}
                     >
                       {o.label}
@@ -468,15 +470,35 @@ export default function CuttingStation() {
             {reporting.packaging_types.length > 0 && (
               <div className="field">
                 <label>מספר חבילות כולל</label>
-                <input
-                  required
-                  type="number"
-                  inputMode="numeric"
-                  min={reporting.packaging_types.length}
-                  step={1}
-                  value={reporting.packages_count}
-                  onChange={(e) => setReporting({ ...reporting, packages_count: e.target.value })}
-                />
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="הקטן מספר חבילות"
+                    disabled={(Number(reporting.packages_count) || 0) <= reporting.packaging_types.length}
+                    onClick={() => setReporting({ ...reporting, packages_count: String(Math.max(reporting.packaging_types.length, (Number(reporting.packages_count) || 0) - 1)) })}
+                  >
+                    −
+                  </button>
+                  <input
+                    required
+                    type="number"
+                    inputMode="numeric"
+                    min={reporting.packaging_types.length}
+                    step={1}
+                    style={{ textAlign: "center" }}
+                    value={reporting.packages_count}
+                    onChange={(e) => setReporting({ ...reporting, packages_count: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    aria-label="הגדל מספר חבילות"
+                    onClick={() => setReporting({ ...reporting, packages_count: String((Number(reporting.packages_count) || 0) + 1) })}
+                  >
+                    +
+                  </button>
+                </div>
                 <p className="muted" style={{ margin: "0.25rem 0 0" }}>
                   סך כל החבילות בהזמנה, מכל הסוגים שסומנו יחד (למשל גליל + שקית, ובסך הכל 5).
                 </p>
