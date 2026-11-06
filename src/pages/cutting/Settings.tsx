@@ -23,7 +23,7 @@ type ColorForm = { id?: string; fabricId: string; color_name: string; in_stock: 
 export default function CuttingSettings() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
-  const { canManageCatalog, canManageSettings } = useCuttingPermissions();
+  const { canManageCatalog, canManageSettings, isAdmin } = useCuttingPermissions();
 
   const [fabrics, setFabrics] = useState<CuttingFabric[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -157,7 +157,7 @@ export default function CuttingSettings() {
 
   return (
     <>
-      {canManageSettings && (
+      {isAdmin && (
         <div className="table-wrap" style={{ padding: "1rem", marginBottom: "1.5rem" }}>
           <h2 className="page-subtitle" style={{ margin: 0 }}>
             סוכן הדפסה

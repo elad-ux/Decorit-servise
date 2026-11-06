@@ -24,6 +24,10 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run build
+      - name: Package print agent (served as ./downloads/print-agent.zip)
+        run: |
+          mkdir -p dist/downloads
+          zip -r dist/downloads/print-agent.zip print-agent -x 'print-agent/.env' 'print-agent/node_modules/*' 'print-agent/agent.log*'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
