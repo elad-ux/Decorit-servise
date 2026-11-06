@@ -157,6 +157,19 @@ export default function CuttingSettings() {
 
   return (
     <>
+      {canManageSettings && (
+        <div className="table-wrap" style={{ padding: "1rem", marginBottom: "1.5rem" }}>
+          <h2 className="page-subtitle" style={{ margin: 0 }}>
+            סוכן הדפסה
+          </h2>
+          <p className="muted" style={{ margin: "0.5rem 0 0.75rem" }}>
+            החבילה להתקנה/עדכון בשרת המשרד (Windows): סוכן הדפסה, תבנית התלוש והוראות. קובץ ה-.env עם המפתח לא כלול בחבילה.
+          </p>
+          <a className="btn btn-sm" style={{ width: "auto", display: "inline-block" }} href="./downloads/print-agent.zip" download="print-agent.zip">
+            הורדת חבילת סוכן ההדפסה (ZIP)
+          </a>
+        </div>
+      )}
       <div className="broadcast-header">
         <h2 className="page-subtitle" style={{ margin: 0 }}>
           קטלוג בדים וצבעים
