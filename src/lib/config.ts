@@ -36,6 +36,7 @@ export const ENDPOINTS = {
   pushSubscriptions: `${API_ROOT}/dashboard/push-subscriptions`,
   broadcastActivityLog: `${API_ROOT}/dashboard/broadcast-activity-log`,
   cutting: `${API_ROOT}/dashboard/cutting`,
+  printKey: `${API_ROOT}/dashboard/print-key`,
 } as const;
 
 /** Raw EC P-256 point, base64url — the public half of the VAPID keypair used to sign Web Push messages. Safe to ship client-side (that's its purpose). */

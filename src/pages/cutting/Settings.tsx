@@ -5,6 +5,7 @@ import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
 import FabricImportModal from "./FabricImportModal";
 import {
+  getPrintAgentKey,
   type CuttingFabric,
   type CuttingFabricColor,
   addColor,
@@ -24,6 +25,40 @@ export default function CuttingSettings() {
   const { session } = useAuth();
   const sessionToken = session?.sessionToken ?? "";
   const { canManageCatalog, canManageSettings, isAdmin } = useCuttingPermissions();
+  const [agentKey, setAgentKey] = useState<string | null>(null);
+  const [agentKeyError, setAgentKeyError] = useState<string | null>(null);
+  const [agentKeyBusy, setAgentKeyBusy] = useState(false);
+  const [agentKeyCopied, setAgentKeyCopied] = useState(false);
+
+  // The key is shown only on demand and hidden again after a minute / on leaving the page.
+  useEffect(() => {
+    if (!agentKey) return;
+    const t = setTimeout(() => setAgentKey(null), 60_000);
+    return () => clearTimeout(t);
+  }, [agentKey]);
+
+  async function revealAgentKey() {
+    setAgentKeyBusy(true);
+    setAgentKeyError(null);
+    setAgentKeyCopied(false);
+    try {
+      setAgentKey((await getPrintAgentKey(sessionToken)).key);
+    } catch (err) {
+      setAgentKeyError(err instanceof ApiError ? err.message : "שגיאה בהצגת המפתח");
+    } finally {
+      setAgentKeyBusy(false);
+    }
+  }
+
+  async function copyAgentKey() {
+    if (!agentKey) return;
+    try {
+      await navigator.clipboard.writeText(agentKey);
+      setAgentKeyCopied(true);
+    } catch {
+      // clipboard blocked — the key is selectable in the field, user can copy manually
+    }
+  }
 
   const [fabrics, setFabrics] = useState<CuttingFabric[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -168,6 +203,36 @@ export default function CuttingSettings() {
           <a className="btn btn-sm" style={{ width: "auto", display: "inline-block" }} href="./downloads/print-agent.zip" download="print-agent.zip">
             הורדת חבילת סוכן ההדפסה (ZIP)
           </a>
+          <div style={{ marginTop: "1rem" }}>
+            {!agentKey ? (
+              <button type="button" className="btn-link" disabled={agentKeyBusy} onClick={() => void revealAgentKey()}>
+                {agentKeyBusy ? "טוען..." : "הצג מפתח"}
+              </button>
+            ) : (
+              <>
+                <p className="muted" style={{ margin: "0 0 0.5rem" }}>
+                  העתק לקובץ .env בשורה PRINT_API_KEY. המפתח נעלם אוטומטית אחרי דקה.
+                </p>
+                <input
+                  readOnly
+                  dir="ltr"
+                  className="mono"
+                  value={agentKey}
+                  onFocus={(e) => e.currentTarget.select()}
+                  style={{ width: "100%", maxWidth: 640 }}
+                />
+                <div style={{ marginTop: "0.5rem" }}>
+                  <button type="button" className="btn-link" onClick={() => void copyAgentKey()}>
+                    {agentKeyCopied ? "הועתק ✓" : "העתק"}
+                  </button>
+                  <button type="button" className="btn-link" style={{ marginInlineStart: "1rem" }} onClick={() => setAgentKey(null)}>
+                    הסתר
+                  </button>
+                </div>
+              </>
+            )}
+            {agentKeyError && <div className="error-box">{agentKeyError}</div>}
+          </div>
         </div>
       )}
       <div className="broadcast-header">

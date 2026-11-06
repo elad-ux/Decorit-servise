@@ -212,3 +212,10 @@ export function getPrintStatus(sessionToken: string): Promise<PrintStatus> {
 export function reprintTask(sessionToken: string, taskId: string): Promise<{ job_id: string; status: PrintJobStatus }> {
   return manage(sessionToken, "print_reprint", { task_id: taskId });
 }
+
+/** Admin only (enforced server-side): the print agent's API key, to paste into the agent's .env file. */
+export function getPrintAgentKey(sessionToken: string): Promise<{ agent_id: string; key: string }> {
+  return postAction<{ ok: true; data: { agent_id: string; key: string } }>(ENDPOINTS.printKey, sessionToken, "get").then(
+    (res) => res.data,
+  );
+}
