@@ -5,6 +5,7 @@ import { ApiError } from "../../lib/api";
 import Modal from "../../components/Modal";
 import { useCuttingPermissions } from "../../components/CuttingLayout";
 import { PencilIcon, TrashIcon } from "../../components/icons";
+import { PackagingCell } from "../../components/TaskCells";
 import {
   type CreateTaskInput,
   type CuttingFabric,
@@ -320,7 +321,17 @@ export default function CuttingBoard() {
                       </div>
                     )}
                   </td>
-                  <td>{t.quantity_ordered}</td>
+                  <td>
+                    {t.quantity_ordered}
+                    {t.quantity_completed != null && (
+                      <div className="muted" style={{ marginTop: "0.25rem" }}>
+                        בפועל: {t.quantity_completed}
+                        <div>
+                          <PackagingCell task={t} />
+                        </div>
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <span className={`pill pill-status-${t.status === "archived" ? "deleted_from_meta" : t.status}`}>
                       {t.status === "archived" && t.cancelled_at ? "בוטל" : STATUS_LABEL[t.status]}

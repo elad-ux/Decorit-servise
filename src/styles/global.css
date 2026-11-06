@@ -1561,3 +1561,19 @@ tbody tr.row-urgent:hover {
     display: none;
   }
 }
+
+/* Stacked date/time and packaging cells (cutting station tables) */
+.dt-cell,
+.pack-cell {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.dt-time {
+  color: var(--muted, #7a6f66);
+  font-size: 0.9em;
+}
+.pack-cell {
+  white-space: normal;
+}

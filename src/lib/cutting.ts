@@ -155,15 +155,27 @@ export const PACKAGING_OPTIONS = [
 
 const PACKAGING_LABEL: Record<string, string> = Object.fromEntries(PACKAGING_OPTIONS.map((o) => [o.value, o.label]));
 
-/** "שקית/חבילה + גליל · 5 חבילות" — falls back to the legacy single value on old rows. */
-export function formatPackaging(t: Pick<CuttingTask, "packaging_type" | "packaging_types" | "packages_count">): string {
+/** "שקית/חבילה + גליל" (new reports) or the legacy single value ("גליל"); "" when nothing was recorded. */
+export function formatPackagingKinds(t: Pick<CuttingTask, "packaging_type" | "packaging_types">): string {
   if (t.packaging_types && t.packaging_types.length > 0) {
-    const kinds = t.packaging_types.map((k) => PACKAGING_LABEL[k] ?? k).join(" + ");
-    const n = t.packages_count;
-    return n ? `${kinds} · ${n === 1 ? "חבילה אחת" : `${n} חבילות`}` : kinds;
+    return t.packaging_types.map((k) => PACKAGING_LABEL[k] ?? k).join(" + ");
   }
   if (t.packaging_type) return PACKAGING_LABEL[t.packaging_type] ?? t.packaging_type;
   return "";
+}
+
+/** "5 חבילות" / "חבילה אחת"; "" when the count wasn't recorded (legacy rows). */
+export function formatPackagesCount(t: Pick<CuttingTask, "packages_count">): string {
+  const n = t.packages_count;
+  if (!n) return "";
+  return n === 1 ? "חבילה אחת" : `${n} חבילות`;
+}
+
+/** "שקית/חבילה + גליל · 5 חבילות" — falls back to the legacy single value on old rows. */
+export function formatPackaging(t: Pick<CuttingTask, "packaging_type" | "packaging_types" | "packages_count">): string {
+  const kinds = formatPackagingKinds(t);
+  const count = formatPackagesCount(t);
+  return kinds && count ? `${kinds} · ${count}` : kinds;
 }
 
 export interface ReportCompleteInput {
