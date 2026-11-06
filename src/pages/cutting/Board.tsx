@@ -30,7 +30,7 @@ const STATUS_LABEL: Record<CuttingTaskStatus, string> = {
 const PRINT_LABEL: Record<PrintJobStatus, string> = {
   queued: "ממתין להדפסה",
   claimed: "מדפיס...",
-  printed: "הודפס",
+  printed: "✓ הודפס",
   failed: "הדפסה נכשלה",
   expired: "פג תוקף",
 };
