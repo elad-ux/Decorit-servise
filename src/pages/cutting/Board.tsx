@@ -12,7 +12,11 @@ import {
   createTask,
   deleteTask,
   listFabrics,
+  getPrintStatus,
   listTasks,
+  reprintTask,
+  type PrintStatus,
+  type PrintJobStatus,
   suggestCustomers,
   updateTask,
 } from "../../lib/cutting";
@@ -22,6 +26,28 @@ const STATUS_LABEL: Record<CuttingTaskStatus, string> = {
   completed: "הושלם",
   archived: "בארכיון",
 };
+
+const PRINT_LABEL: Record<PrintJobStatus, string> = {
+  queued: "ממתין להדפסה",
+  claimed: "מדפיס...",
+  printed: "הודפס",
+  failed: "הדפסה נכשלה",
+  expired: "פג תוקף",
+};
+
+/** Human-readable printer problem, or null when the printer looks fine. */
+function printerProblem(ps: PrintStatus | null): string | null {
+  if (!ps) return null;
+  if (!ps.agent.online) return "סוכן ההדפסה לא מחובר — תלושים ימתינו בתור";
+  const s = ps.agent.status;
+  if (!s) return null;
+  if (s.offline) return "המדפסת במצב לא מקוון";
+  if (s.cover_open) return "מכסה המדפסת פתוח";
+  if (s.paper_end || s.stopped_paper_end) return "נגמר הנייר במדפסת";
+  if (s.cutter_error || s.mechanical_error || s.unrecoverable || s.error) return "שגיאה במדפסת";
+  if (s.paper_near_end) return "הנייר במדפסת עומד להיגמר";
+  return null;
+}
 
 type FormState = {
   id?: string;
@@ -54,6 +80,7 @@ export default function CuttingBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [printStatus, setPrintStatus] = useState<PrintStatus | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<CuttingTaskStatus | "all">("pending");
   const [urgentOnly, setUrgentOnly] = useState(false);
@@ -94,6 +121,34 @@ export default function CuttingBoard() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerFilter]);
+
+  async function refreshPrintStatus() {
+    try {
+      setPrintStatus(await getPrintStatus(sessionToken));
+    } catch {
+      // non-fatal — the board works without print status
+    }
+  }
+
+  useEffect(() => {
+    void refreshPrintStatus();
+    const id = setInterval(() => void refreshPrintStatus(), 10000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleReprint(task: CuttingTask) {
+    if (!window.confirm(`להדפיס שוב תלוש עבור ${task.customer_name}?`)) return;
+    setBusyId(task.id);
+    try {
+      await reprintTask(sessionToken, task.id);
+      await refreshPrintStatus();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "שגיאה בשליחת הדפסה חוזרת");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   useEffect(() => {
     listFabrics(sessionToken, false)
@@ -208,6 +263,8 @@ export default function CuttingBoard() {
         )}
       </div>
 
+      {printerProblem(printStatus) && <div className="error-box">{printerProblem(printStatus)}</div>}
+
       <div className="chip-row" style={{ margin: "0.75rem 0" }}>
         {(["pending", "completed", "archived", "all"] as const).map((s) => (
           <button
@@ -242,6 +299,7 @@ export default function CuttingBoard() {
                 <th>כמות</th>
                 <th>סטטוס</th>
                 <th>הערות</th>
+                <th>הדפסה</th>
                 <th>נוצר / עודכן</th>
                 <th></th>
               </tr>
@@ -273,6 +331,30 @@ export default function CuttingBoard() {
                     )}
                   </td>
                   <td className="muted">{t.office_notes || "—"}</td>
+                  <td>
+                    {printStatus?.tasks[t.id] ? (
+                      <span
+                        className={`pill ${printStatus.tasks[t.id].status === "failed" ? "pill-danger" : ""}`}
+                        title={printStatus.tasks[t.id].last_error ?? undefined}
+                      >
+                        {PRINT_LABEL[printStatus.tasks[t.id].status]}
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                    {canEdit && (
+                      <div>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          disabled={busyId === t.id}
+                          onClick={() => void handleReprint(t)}
+                        >
+                          הדפס שוב
+                        </button>
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div>{new Date(t.created_at).toLocaleString("he-IL")}</div>
                     {t.created_by_name && <div className="muted" style={{ fontSize: "0.75rem" }}>ע"י {t.created_by_name}</div>}
@@ -308,7 +390,7 @@ export default function CuttingBoard() {
               ))}
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
+                  <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "2rem" }}>
                     אין משימות להצגה
                   </td>
                 </tr>

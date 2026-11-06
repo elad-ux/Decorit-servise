@@ -166,3 +166,46 @@ export function setSetting(sessionToken: string, key: string, value: string, des
 export function suggestCustomers(sessionToken: string, q: string): Promise<string[]> {
   return manage(sessionToken, "customers_suggest", { q });
 }
+
+export type PrintJobStatus = "queued" | "claimed" | "printed" | "failed" | "expired";
+
+export interface PrintTaskStatus {
+  status: PrintJobStatus;
+  attempts: number;
+  last_error: string | null;
+  printed_at: string | null;
+  created_at: string;
+}
+
+export interface PrinterFlags {
+  offline?: boolean;
+  cover_open?: boolean;
+  paper_end?: boolean;
+  stopped_paper_end?: boolean;
+  paper_near_end?: boolean;
+  error?: boolean;
+  mechanical_error?: boolean;
+  cutter_error?: boolean;
+  unrecoverable?: boolean;
+}
+
+export interface PrintStatus {
+  agent: {
+    online: boolean;
+    last_seen: string | null;
+    printer_ok: boolean | null;
+    status: PrinterFlags | null;
+    status_at: string | null;
+  };
+  /** keyed by task id; only tasks that have a print job in the last 3 days */
+  tasks: Record<string, PrintTaskStatus>;
+}
+
+export function getPrintStatus(sessionToken: string): Promise<PrintStatus> {
+  return manage(sessionToken, "print_status");
+}
+
+/** Queue another slip for an existing task. */
+export function reprintTask(sessionToken: string, taskId: string): Promise<{ job_id: string; status: PrintJobStatus }> {
+  return manage(sessionToken, "print_reprint", { task_id: taskId });
+}
