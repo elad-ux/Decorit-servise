@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
-    sourcemap: true,
+    // No public source maps — the deployed bundle should not ship readable source.
+    sourcemap: false,
   },
 });
